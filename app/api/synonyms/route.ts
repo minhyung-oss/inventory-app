@@ -2,128 +2,81 @@ import { NextResponse } from "next/server";
 import { promises as fs } from "fs";
 import path from "path";
 
-export const dynamic = "force-dynamic";
+// 데이터 파일 경로: 프로젝트 최상위 data/synonyms.json
+const dataPath = path.join(process.cwd(), "data", "synonyms.json");
 
-type SynRow = { canonical: string; aliases: string[] };
-
-function normText(s: string) {
-  return String(s ?? "").trim();
-}
-
-function filePath() {
-  return path.join(process.cwd(), "data", "synonyms.json");
-}
-
-async function ensureDir() {
-  const dir = path.join(process.cwd(), "data");
-  await fs.mkdir(dir, { recursive: true });
-}
-
-async function readAll(): Promise<SynRow[]> {
+// 헬퍼: 파일 읽기
+async function readSynonyms() {
   try {
-    const raw = await fs.readFile(filePath(), "utf-8");
-    const arr = JSON.parse(raw);
-    if (!Array.isArray(arr)) return [];
-    return arr
-      .map((x: any) => ({
-        canonical: normText(x?.canonical),
-        aliases: Array.isArray(x?.aliases) ? x.aliases.map(normText).filter(Boolean) : [],
-      }))
-      .filter((x: SynRow) => x.canonical);
+    const txt = await fs.readFile(dataPath, "utf-8");
+    return JSON.parse(txt);
+  } catch (e) {
+    return []; // 파일 없으면 빈 배열
+  }
+}
+
+// 헬퍼: 파일 쓰기
+async function writeSynonyms(data: any[]) {
+  // data 폴더가 없으면 생성
+  const dir = path.dirname(dataPath);
+  try {
+    await fs.access(dir);
   } catch {
-    return [];
+    await fs.mkdir(dir, { recursive: true });
   }
+  await fs.writeFile(dataPath, JSON.stringify(data, null, 2), "utf-8");
 }
 
-async function writeAll(rows: SynRow[]) {
-  await ensureDir();
-  const p = filePath();
-  const tmp = p + ".tmp";
-  await fs.writeFile(tmp, JSON.stringify(rows, null, 2), "utf-8");
-  await fs.rename(tmp, p);
-}
-
-function checkAdmin(req: Request) {
-  const token = process.env.ADMIN_TOKEN;
-  if (!token) return true; // 로컬 테스트: 토큰 미설정이면 누구나 수정 가능
-  const got = req.headers.get("x-admin-token") ?? "";
-  return got === token;
-}
-
+// GET: 목록 조회
 export async function GET() {
-  const rows = await readAll();
-  return NextResponse.json({ rows, count: rows.length });
+  const rows = await readSynonyms();
+  return NextResponse.json({ rows });
 }
 
+// POST: 추가
 export async function POST(req: Request) {
-  if (!checkAdmin(req)) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  const body = await req.json();
+  const { canonical, aliases } = body;
+  if (!canonical) return NextResponse.json({ error: "missing canonical" }, { status: 400 });
 
-  const body = await req.json().catch(() => null);
-  const canonical = normText(body?.canonical);
-  const aliasesRaw = body?.aliases;
+  const rows = await readSynonyms();
+  // 중복 제거 후 추가
+  const newRows = rows.filter((r: any) => r.canonical !== canonical);
+  newRows.push({ canonical, aliases });
+  
+  await writeSynonyms(newRows);
+  return NextResponse.json({ success: true });
+}
 
-  const aliases =
-    Array.isArray(aliasesRaw)
-      ? aliasesRaw.map(normText).filter(Boolean)
-      : String(aliasesRaw ?? "")
-          .split(/[,\n]/g)
-          .map(normText)
-          .filter(Boolean);
+// PUT: 수정
+export async function PUT(req: Request) {
+  const body = await req.json();
+  const { canonical, newCanonical, aliases } = body;
+  if (!canonical || !newCanonical) return NextResponse.json({ error: "missing data" }, { status: 400 });
 
-  if (!canonical) return NextResponse.json({ error: "canonical is required" }, { status: 400 });
-
-  const rows = await readAll();
-  const idx = rows.findIndex((r) => r.canonical.toLowerCase() === canonical.toLowerCase());
-
-  if (idx >= 0) {
-    // upsert(병합)
-    const merged = new Set<string>(rows[idx].aliases.map((a) => a.trim()).filter(Boolean));
-    for (const a of aliases) merged.add(a);
-    rows[idx] = { canonical: rows[idx].canonical, aliases: Array.from(merged) };
+  const rows = await readSynonyms();
+  const idx = rows.findIndex((r: any) => r.canonical === canonical);
+  if (idx === -1) {
+    // 없으면 새로 추가
+    rows.push({ canonical: newCanonical, aliases });
   } else {
-    rows.push({ canonical, aliases });
+    // 있으면 수정
+    rows[idx] = { canonical: newCanonical, aliases };
   }
 
-  await writeAll(rows);
-  return NextResponse.json({ ok: true, rows, count: rows.length });
+  await writeSynonyms(rows);
+  return NextResponse.json({ success: true });
 }
 
-export async function PUT(req: Request) {
-  if (!checkAdmin(req)) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-
-  const body = await req.json().catch(() => null);
-  const canonical = normText(body?.canonical);
-  const newCanonical = normText(body?.newCanonical) || canonical;
-
-  const aliasesRaw = body?.aliases;
-  const aliases =
-    Array.isArray(aliasesRaw)
-      ? aliasesRaw.map(normText).filter(Boolean)
-      : String(aliasesRaw ?? "")
-          .split(/[,\n]/g)
-          .map(normText)
-          .filter(Boolean);
-
-  if (!canonical) return NextResponse.json({ error: "canonical is required" }, { status: 400 });
-
-  const rows = await readAll();
-  const idx = rows.findIndex((r) => r.canonical.toLowerCase() === canonical.toLowerCase());
-  if (idx < 0) return NextResponse.json({ error: "not found" }, { status: 404 });
-
-  rows[idx] = { canonical: newCanonical, aliases };
-  await writeAll(rows);
-  return NextResponse.json({ ok: true, rows, count: rows.length });
-}
-
+// DELETE: 삭제
 export async function DELETE(req: Request) {
-  if (!checkAdmin(req)) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-
   const { searchParams } = new URL(req.url);
-  const canonical = normText(searchParams.get("canonical") ?? "");
-  if (!canonical) return NextResponse.json({ error: "canonical is required" }, { status: 400 });
+  const canonical = searchParams.get("canonical");
+  if (!canonical) return NextResponse.json({ error: "missing canonical" }, { status: 400 });
 
-  const rows = await readAll();
-  const next = rows.filter((r) => r.canonical.toLowerCase() !== canonical.toLowerCase());
-  await writeAll(next);
-  return NextResponse.json({ ok: true, rows: next, count: next.length });
+  let rows = await readSynonyms();
+  rows = rows.filter((r: any) => r.canonical !== canonical);
+
+  await writeSynonyms(rows);
+  return NextResponse.json({ success: true });
 }
