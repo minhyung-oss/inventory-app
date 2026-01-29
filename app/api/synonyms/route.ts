@@ -1,8 +1,10 @@
 import { NextResponse } from "next/server";
 import { kv } from "@vercel/kv";
 
+// ✅ 캐싱 완전 무효화 (실시간 반영을 위해 필수)
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 const KV_KEY = "synonyms:rows";
 
@@ -20,20 +22,22 @@ function uniq(arr: string[]) {
   return [...s];
 }
 
+// ✅ 수정: 직접 JSON.parse 하지 않고 SDK에 맡김
 async function readRows(): Promise<SynRow[]> {
-  const raw = await kv.get<string>(KV_KEY);
-  if (!raw) return [];
   try {
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
+    // 데이터가 없으면 null을 반환하므로 빈 배열 처리
+    const data = await kv.get<SynRow[]>(KV_KEY);
+    if (!data || !Array.isArray(data)) return [];
+    return data;
+  } catch (e) {
+    console.error("KV Read Error:", e);
     return [];
   }
 }
 
+// ✅ 수정: JSON.stringify 하지 않고 객체 그대로 저장
 async function writeRows(rows: SynRow[]) {
-  // 🔴 핵심: 반드시 stringify
-  await kv.set(KV_KEY, JSON.stringify(rows));
+  await kv.set(KV_KEY, rows);
 }
 
 async function readJson(req: Request) {
@@ -44,7 +48,7 @@ async function readJson(req: Request) {
 
 export async function GET() {
   const rows = await readRows();
-  return NextResponse.json({ rows }, { headers: { "Cache-Control": "no-store" } });
+  return NextResponse.json({ rows }, { headers: { "Cache-Control": "no-store, max-age=0" } });
 }
 
 export async function POST(req: Request) {

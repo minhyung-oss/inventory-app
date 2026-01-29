@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { kv } from "@vercel/kv";
 
 /**
  * ✅ inventory API (FULL VERSION)
@@ -179,7 +180,7 @@ function normStrategy(r: Record<string, string>) {
   };
 }
 
-// ✅ 현대차(일반구매) 매핑: 대표차종=대표차종, 차종=차종명, 옵션=옵션, 외장=외장, 내장=내장, 가격=가격, 재고=즉시출고
+// ✅ 현대차(일반구매) 매핑
 function normHyundai(r: Record<string, string>, idx: number) {
   return {
     구분: "현대",
@@ -201,7 +202,7 @@ function normHyundai(r: Record<string, string>, idx: number) {
 }
 
 
-// ✅ 기아차(일반구매) 매핑: 대표차종=대표차종, 차종명=차종명, 옵션=옵션, 외장=외장, 내장=내장, 가격=가격, 재고=즉시출고
+// ✅ 기아차(일반구매) 매핑
 function normKia(r: Record<string, string>, idx: number) {
   return {
     구분: "기아",
@@ -224,9 +225,7 @@ function normKia(r: Record<string, string>, idx: number) {
 
 // ================== 동의어(검색어 별명) ==================
 // ================== Synonyms (Vercel KV / Upstash Redis) ==================
-// ✅ Vercel 서버리스에서는 파일(fs.writeFile) 영구저장이 불가하므로 KV(Redis)를 사용합니다.
-// KV 저장 키 (synonyms 설정관리에서 저장하는 키와 동일)
-import { kv } from "@vercel/kv";
+// ✅ 수정됨: KV 데이터 로드 시 안전장치 추가
 
 type SynRow = { canonical: string; aliases: string[] };
 
@@ -236,21 +235,30 @@ function normText(s: string) {
 
 const SYN_KV_KEY = "synonyms:rows";
 
+// [Fix] 안전하게 KV 데이터 로드 (배열 확인)
 async function loadSynonyms(): Promise<SynRow[]> {
-  // KV에 저장된 rows를 가져온다. 없으면 빈 배열.
-  const rows = await kv.get<SynRow[]>(SYN_KV_KEY);
-  if (!Array.isArray(rows)) return [];
-  return rows
-    .map((x: any) => ({
-      canonical: String(x?.canonical ?? "").trim(),
-      aliases: Array.isArray(x?.aliases) ? x.aliases.map((a: any) => String(a)) : [],
-    }))
-    .filter((r) => r.canonical || (r.aliases?.length ?? 0) > 0);
+  try {
+    const rows = await kv.get<SynRow[]>(SYN_KV_KEY);
+    
+    // 데이터가 없거나 배열이 아니면 빈 배열 반환
+    if (!rows || !Array.isArray(rows)) {
+      return [];
+    }
+
+    return rows
+      .map((x: any) => ({
+        canonical: String(x?.canonical ?? "").trim(),
+        aliases: Array.isArray(x?.aliases) ? x.aliases.map((a: any) => String(a)) : [],
+      }))
+      .filter((r) => r.canonical || (r.aliases?.length ?? 0) > 0);
+  } catch (e) {
+    console.error("Failed to load synonyms from KV:", e);
+    return [];
+  }
 }
 
 function expandQueryTokens(tokens: string[], syns: SynRow[]) {
   // token 하나당 확장 후보들의 Set을 만든다. (여러 토큰이면 AND)
-  // ✅ 별명(aliases) 또는 canonical에 대해 prefix 뿐 아니라 contains/동일 매칭도 허용
   const synIndex = syns.map((s) => ({
     canonical: normText(s.canonical),
     aliases: (s.aliases ?? []).map(normText).filter(Boolean),
@@ -378,20 +386,21 @@ export async function GET(req: Request) {
   }
 
   // ================== 검색 (동의어 확장 포함) ==================
-let rows = out;
+  let rows = out;
 
-if (q && q.trim()) {
-  const syns = await loadSynonyms();
-  const tokens = q.trim().split(/[\s,]+/g).filter(Boolean);
-  const expanded = expandQueryTokens(tokens, syns);
+  if (q && q.trim()) {
+    // [Fix] 수정된 loadSynonyms 호출 (배열 보장)
+    const syns = await loadSynonyms();
+    const tokens = q.trim().split(/[\s,]+/g).filter(Boolean);
+    const expanded = expandQueryTokens(tokens, syns);
 
-  rows = out.filter((r) => {
-    const rowText = Object.values(r).join(" ").toLowerCase();
-    return rowMatchesExpandedQuery(rowText, expanded);
-  });
-}
+    rows = out.filter((r) => {
+      const rowText = Object.values(r).join(" ").toLowerCase();
+      return rowMatchesExpandedQuery(rowText, expanded);
+    });
+  }
 
-return NextResponse.json({ rows, count: rows.length }, { headers: { "Cache-Control": "no-store" } });
+  return NextResponse.json({ rows, count: rows.length }, { headers: { "Cache-Control": "no-store" } });
 }
 
 
