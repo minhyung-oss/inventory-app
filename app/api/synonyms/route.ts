@@ -8,42 +8,38 @@ const KV_KEY = "synonyms:rows";
 
 type SynRow = { canonical: string; aliases: string[] };
 
-function norm(s: unknown) {
-  return String(s ?? "").trim();
-}
-function normKey(s: unknown) {
-  return norm(s).toLowerCase();
-}
+const norm = (v: unknown) => String(v ?? "").trim();
+const normKey = (v: unknown) => norm(v).toLowerCase();
+
 function uniq(arr: string[]) {
-  const out: string[] = [];
-  const seen = new Set<string>();
-  for (const x of arr) {
-    const k = normKey(x);
-    if (!k) continue;
-    if (seen.has(k)) continue;
-    seen.add(k);
-    out.push(norm(x));
-  }
-  return out;
+  const s = new Set<string>();
+  arr.forEach(v => {
+    const k = normKey(v);
+    if (k) s.add(norm(v));
+  });
+  return [...s];
 }
 
 async function readRows(): Promise<SynRow[]> {
-  const rows = await kv.get<SynRow[]>(KV_KEY);
-  return Array.isArray(rows) ? rows : [];
-}
-async function writeRows(rows: SynRow[]) {
-  await kv.set(KV_KEY, rows);
+  const raw = await kv.get<string>(KV_KEY);
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
 }
 
-// ✅ JSON body 파싱을 더 안전하게(빈 body / 깨진 JSON 대비)
-async function readJson(req: Request): Promise<any> {
+async function writeRows(rows: SynRow[]) {
+  // 🔴 핵심: 반드시 stringify
+  await kv.set(KV_KEY, JSON.stringify(rows));
+}
+
+async function readJson(req: Request) {
   const txt = await req.text().catch(() => "");
-  if (!txt || !txt.trim()) return {};
-  try {
-    return JSON.parse(txt);
-  } catch {
-    return { __invalid_json: true, __raw: txt };
-  }
+  if (!txt) return {};
+  return JSON.parse(txt);
 }
 
 export async function GET() {
@@ -53,74 +49,61 @@ export async function GET() {
 
 export async function POST(req: Request) {
   const body = await readJson(req);
-  if (body?.__invalid_json) {
-    return NextResponse.json({ error: "invalid json body" }, { status: 400 });
+  const canonical = norm(body.canonical);
+  const aliases = uniq((body.aliases ?? []).map(norm));
+
+  if (!canonical) {
+    return NextResponse.json({ error: "missing canonical" }, { status: 400 });
   }
-
-  const canonical = norm(body?.canonical);
-  const aliasesRaw = Array.isArray(body?.aliases) ? body.aliases : [];
-  const aliases = uniq(aliasesRaw.map(norm)).filter(Boolean);
-
-  if (!canonical) return NextResponse.json({ error: "missing canonical" }, { status: 400 });
 
   const rows = await readRows();
   const ck = normKey(canonical);
-  const idx = rows.findIndex((r) => normKey(r?.canonical) === ck);
+  const idx = rows.findIndex(r => normKey(r.canonical) === ck);
 
   if (idx >= 0) {
-    // ✅ 기존 + 신규 aliases merge (저장하면 기존이 '삭제'된 것처럼 보이는 문제 방지)
-    rows[idx] = { canonical, aliases: uniq([...(rows[idx].aliases ?? []), ...aliases]) };
+    rows[idx].aliases = uniq([...rows[idx].aliases, ...aliases]);
   } else {
     rows.push({ canonical, aliases });
   }
 
   await writeRows(rows);
-  return NextResponse.json({ success: true, rows }, { headers: { "Cache-Control": "no-store" } });
+  return NextResponse.json({ success: true, rows });
 }
 
 export async function PUT(req: Request) {
   const body = await readJson(req);
-  if (body?.__invalid_json) {
-    return NextResponse.json({ error: "invalid json body" }, { status: 400 });
-  }
-
-  const canonical = norm(body?.canonical);
-  const newCanonical = norm(body?.newCanonical);
-  const aliasesRaw = Array.isArray(body?.aliases) ? body.aliases : [];
-  const aliases = uniq(aliasesRaw.map(norm)).filter(Boolean);
+  const canonical = norm(body.canonical);
+  const newCanonical = norm(body.newCanonical);
+  const aliases = uniq((body.aliases ?? []).map(norm));
 
   if (!canonical || !newCanonical) {
     return NextResponse.json({ error: "missing data" }, { status: 400 });
   }
 
   const rows = await readRows();
-  const idx = rows.findIndex((r) => normKey(r?.canonical) === normKey(canonical));
+  const idx = rows.findIndex(r => normKey(r.canonical) === normKey(canonical));
 
-  if (idx === -1) rows.push({ canonical: newCanonical, aliases });
-  else rows[idx] = { canonical: newCanonical, aliases };
+  if (idx >= 0) {
+    rows[idx] = { canonical: newCanonical, aliases };
+  } else {
+    rows.push({ canonical: newCanonical, aliases });
+  }
 
   await writeRows(rows);
-  return NextResponse.json({ success: true, rows }, { headers: { "Cache-Control": "no-store" } });
+  return NextResponse.json({ success: true, rows });
 }
 
 export async function DELETE(req: Request) {
   const url = new URL(req.url);
-  let canonical = norm(url.searchParams.get("canonical"));
+  const canonical = norm(url.searchParams.get("canonical"));
 
   if (!canonical) {
-    const body = await readJson(req);
-    if (body?.__invalid_json) {
-      return NextResponse.json({ error: "invalid json body" }, { status: 400 });
-    }
-    canonical = norm(body?.canonical);
+    return NextResponse.json({ error: "missing canonical" }, { status: 400 });
   }
 
-  if (!canonical) return NextResponse.json({ error: "missing canonical" }, { status: 400 });
-
   const rows = await readRows();
-  const ck = normKey(canonical);
-  const next = rows.filter((r) => normKey(r?.canonical) !== ck);
+  const next = rows.filter(r => normKey(r.canonical) !== normKey(canonical));
 
   await writeRows(next);
-  return NextResponse.json({ success: true, rows: next }, { headers: { "Cache-Control": "no-store" } });
+  return NextResponse.json({ success: true, rows: next });
 }
