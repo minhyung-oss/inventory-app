@@ -1,30 +1,21 @@
 import { NextResponse } from "next/server";
-import { promises as fs } from "fs";
-import path from "path";
+import { kv } from "@vercel/kv";
 
-// 데이터 파일 경로: 프로젝트 최상위 data/synonyms.json
-const dataPath = path.join(process.cwd(), "data", "synonyms.json");
+// ✅ Vercel(서버리스)에서 파일 저장(fs.writeFile)은 영구 저장이 불가하므로
+//    Vercel KV(Redis)에 저장하도록 변경합니다.
+//
+// 저장 키
+const KV_KEY = "synonyms:rows";
 
-// 헬퍼: 파일 읽기
-async function readSynonyms() {
-  try {
-    const txt = await fs.readFile(dataPath, "utf-8");
-    return JSON.parse(txt);
-  } catch (e) {
-    return []; // 파일 없으면 빈 배열
-  }
+// 헬퍼: KV에서 읽기
+async function readSynonyms(): Promise<any[]> {
+  const rows = await kv.get<any[]>(KV_KEY);
+  return Array.isArray(rows) ? rows : [];
 }
 
-// 헬퍼: 파일 쓰기
+// 헬퍼: KV에 쓰기
 async function writeSynonyms(data: any[]) {
-  // data 폴더가 없으면 생성
-  const dir = path.dirname(dataPath);
-  try {
-    await fs.access(dir);
-  } catch {
-    await fs.mkdir(dir, { recursive: true });
-  }
-  await fs.writeFile(dataPath, JSON.stringify(data, null, 2), "utf-8");
+  await kv.set(KV_KEY, data);
 }
 
 // GET: 목록 조회
@@ -36,14 +27,15 @@ export async function GET() {
 // POST: 추가
 export async function POST(req: Request) {
   const body = await req.json();
-  const { canonical, aliases } = body;
+  const { canonical, aliases } = body ?? {};
   if (!canonical) return NextResponse.json({ error: "missing canonical" }, { status: 400 });
 
   const rows = await readSynonyms();
+
   // 중복 제거 후 추가
-  const newRows = rows.filter((r: any) => r.canonical !== canonical);
-  newRows.push({ canonical, aliases });
-  
+  const newRows = rows.filter((r: any) => r?.canonical !== canonical);
+  newRows.push({ canonical, aliases: Array.isArray(aliases) ? aliases : [] });
+
   await writeSynonyms(newRows);
   return NextResponse.json({ success: true });
 }
@@ -51,17 +43,18 @@ export async function POST(req: Request) {
 // PUT: 수정
 export async function PUT(req: Request) {
   const body = await req.json();
-  const { canonical, newCanonical, aliases } = body;
+  const { canonical, newCanonical, aliases } = body ?? {};
   if (!canonical || !newCanonical) return NextResponse.json({ error: "missing data" }, { status: 400 });
 
   const rows = await readSynonyms();
-  const idx = rows.findIndex((r: any) => r.canonical === canonical);
+  const idx = rows.findIndex((r: any) => r?.canonical === canonical);
+
   if (idx === -1) {
     // 없으면 새로 추가
-    rows.push({ canonical: newCanonical, aliases });
+    rows.push({ canonical: newCanonical, aliases: Array.isArray(aliases) ? aliases : [] });
   } else {
     // 있으면 수정
-    rows[idx] = { canonical: newCanonical, aliases };
+    rows[idx] = { canonical: newCanonical, aliases: Array.isArray(aliases) ? aliases : [] };
   }
 
   await writeSynonyms(rows);
@@ -75,10 +68,12 @@ export async function DELETE(req: Request) {
   if (!canonical) return NextResponse.json({ error: "missing canonical" }, { status: 400 });
 
   let rows = await readSynonyms();
-  rows = rows.filter((r: any) => r.canonical !== canonical);
+  rows = rows.filter((r: any) => r?.canonical !== canonical);
 
   await writeSynonyms(rows);
   return NextResponse.json({ success: true });
 }
+
+// ✅ Node 런타임 고정 (Edge 방지)
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
