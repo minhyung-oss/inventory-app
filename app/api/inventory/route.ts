@@ -250,9 +250,9 @@ async function loadSynonyms(): Promise<SynRow[]> {
 
 function expandQueryTokens(tokens: string[], syns: SynRow[]) {
   // token 하나당 확장 후보들의 Set을 만든다. (여러 토큰이면 AND)
+  // ✅ 별명(aliases) 또는 canonical에 대해 prefix 뿐 아니라 contains/동일 매칭도 허용
   const synIndex = syns.map((s) => ({
     canonical: normText(s.canonical),
-    canonicalRaw: s.canonical,
     aliases: (s.aliases ?? []).map(normText).filter(Boolean),
   }));
 
@@ -260,16 +260,22 @@ function expandQueryTokens(tokens: string[], syns: SynRow[]) {
     const t = normText(tRaw);
     if (!t) return [];
     const set = new Set<string>();
+    // 토큰 자체도 후보에 포함(혹시 데이터에 그대로 존재할 때)
     set.add(t);
 
     for (const s of synIndex) {
-      // 1) 별명이 token으로 시작하면 canonical을 추가 (prefix 매칭)
-      if (s.aliases.some((a) => a.startsWith(t))) {
-        set.add(s.canonical);
-      }
-      // 2) canonical 자체가 token으로 시작해도 canonical 추가
-      if (s.canonical && s.canonical.startsWith(t)) {
-        set.add(s.canonical);
+      const hitAlias = s.aliases.some(
+        (a) => a === t || a.startsWith(t) || a.includes(t) || t.includes(a)
+      );
+      const hitCanon =
+        s.canonical &&
+        (s.canonical === t ||
+          s.canonical.startsWith(t) ||
+          s.canonical.includes(t) ||
+          t.includes(s.canonical));
+
+      if (hitAlias || hitCanon) {
+        if (s.canonical) set.add(s.canonical);
       }
     }
     return Array.from(set).filter(Boolean);
@@ -385,7 +391,7 @@ if (q && q.trim()) {
   });
 }
 
-return NextResponse.json({ rows, count: rows.length });
+return NextResponse.json({ rows, count: rows.length }, { headers: { "Cache-Control": "no-store" } });
 }
 
 
