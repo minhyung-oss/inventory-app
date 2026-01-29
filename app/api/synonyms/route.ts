@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { kv } from "@vercel/kv";
 
-// ✅ 캐싱 완전 무효화 (실시간 반영을 위해 필수)
+// 👇 [핵심] 설정 저장/삭제 시 캐시를 끄고 즉시 반영합니다.
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -22,10 +22,9 @@ function uniq(arr: string[]) {
   return [...s];
 }
 
-// ✅ 수정: 직접 JSON.parse 하지 않고 SDK에 맡김
+// ✅ 수정: JSON.parse/stringify 제거 (배열 객체 그대로 저장)
 async function readRows(): Promise<SynRow[]> {
   try {
-    // 데이터가 없으면 null을 반환하므로 빈 배열 처리
     const data = await kv.get<SynRow[]>(KV_KEY);
     if (!data || !Array.isArray(data)) return [];
     return data;
@@ -35,7 +34,6 @@ async function readRows(): Promise<SynRow[]> {
   }
 }
 
-// ✅ 수정: JSON.stringify 하지 않고 객체 그대로 저장
 async function writeRows(rows: SynRow[]) {
   await kv.set(KV_KEY, rows);
 }
@@ -48,6 +46,7 @@ async function readJson(req: Request) {
 
 export async function GET() {
   const rows = await readRows();
+  // 응답 헤더에도 캐시 금지 설정 추가
   return NextResponse.json({ rows }, { headers: { "Cache-Control": "no-store, max-age=0" } });
 }
 

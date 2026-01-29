@@ -3,17 +3,14 @@ import { kv } from "@vercel/kv";
 
 /**
  * ✅ inventory API (FULL VERSION)
- *
- * 포함 기능(유지)
- * - 전략구매(고정 시트, 헤더 자동탐색)
- * - 일반구매: ✅ 현대차/기아차 시트 연결 (요청 반영)
- * - CSV 헤더가 1행이 아니어도 자동 탐색
- * - 헤더 공백/BOM/표기 흔들림 흡수
- * - 검색(q)
- * - 전략/일반 병합
- * - ✅ 전략구매에서 대표차종·차종명이 둘 다 비면 제외
- * - ✅ 현대차(일반구매)에서 대표차종·차종명이 둘 다 비면 제외
+ * - 캐시 방지 적용 (revalidate = 0)
+ * - 동의어 로드 시 배열 체크 로직 포함
  */
+
+// 👇 [핵심] 캐시를 사용하지 않고 매번 최신 데이터를 조회합니다.
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 // ================== 공통 시트 ==================
 const SHEET_ID = "1JrnMmMgN925WEjJ-NtDhUM0yFFSc1dXHb4Hs8azNsqk";
@@ -180,7 +177,6 @@ function normStrategy(r: Record<string, string>) {
   };
 }
 
-// ✅ 현대차(일반구매) 매핑
 function normHyundai(r: Record<string, string>, idx: number) {
   return {
     구분: "현대",
@@ -201,8 +197,6 @@ function normHyundai(r: Record<string, string>, idx: number) {
   };
 }
 
-
-// ✅ 기아차(일반구매) 매핑
 function normKia(r: Record<string, string>, idx: number) {
   return {
     구분: "기아",
@@ -224,9 +218,6 @@ function normKia(r: Record<string, string>, idx: number) {
 }
 
 // ================== 동의어(검색어 별명) ==================
-// ================== Synonyms (Vercel KV / Upstash Redis) ==================
-// ✅ 수정됨: KV 데이터 로드 시 안전장치 추가
-
 type SynRow = { canonical: string; aliases: string[] };
 
 function normText(s: string) {
@@ -235,12 +226,11 @@ function normText(s: string) {
 
 const SYN_KV_KEY = "synonyms:rows";
 
-// [Fix] 안전하게 KV 데이터 로드 (배열 확인)
+// ✅ 안전하게 KV 데이터 로드 (배열인지 확인)
 async function loadSynonyms(): Promise<SynRow[]> {
   try {
     const rows = await kv.get<SynRow[]>(SYN_KV_KEY);
     
-    // 데이터가 없거나 배열이 아니면 빈 배열 반환
     if (!rows || !Array.isArray(rows)) {
       return [];
     }
@@ -258,7 +248,6 @@ async function loadSynonyms(): Promise<SynRow[]> {
 }
 
 function expandQueryTokens(tokens: string[], syns: SynRow[]) {
-  // token 하나당 확장 후보들의 Set을 만든다. (여러 토큰이면 AND)
   const synIndex = syns.map((s) => ({
     canonical: normText(s.canonical),
     aliases: (s.aliases ?? []).map(normText).filter(Boolean),
@@ -268,7 +257,6 @@ function expandQueryTokens(tokens: string[], syns: SynRow[]) {
     const t = normText(tRaw);
     if (!t) return [];
     const set = new Set<string>();
-    // 토큰 자체도 후보에 포함(혹시 데이터에 그대로 존재할 때)
     set.add(t);
 
     for (const s of synIndex) {
@@ -293,7 +281,6 @@ function expandQueryTokens(tokens: string[], syns: SynRow[]) {
 }
 
 function rowMatchesExpandedQuery(rowText: string, expanded: string[][]) {
-  // AND: 각 토큰 그룹(확장 후보들) 중 하나라도 포함되어야 통과
   for (const group of expanded) {
     if (!group || group.length === 0) continue;
     const ok = group.some((term) => rowText.includes(term));
@@ -330,7 +317,6 @@ export async function GET(req: Request) {
     const strategyRows = raw
       .map(normStrategy)
       .filter((r) => {
-        // ✅ 대표차종·차종명이 둘 다 비면 제외
         return String(r.대표차종).trim() !== "" || String(r.차종명).trim() !== "";
       });
 
@@ -338,7 +324,6 @@ export async function GET(req: Request) {
   }
 
   if (wantGeneral) {
-    // ✅ 현대차 먼저 연결
     if (URL_HYUNDAI) {
       const h = await fetchCsv(URL_HYUNDAI);
       const hRaw = matrixToRecordsByAutoHeader(parseCSVToMatrix(h), [
@@ -354,14 +339,12 @@ export async function GET(req: Request) {
       const hyundaiRows = hRaw
         .map((r, i) => normHyundai(r, i))
         .filter((r) => {
-          // ✅ 대표차종·차종명이 둘 다 비면 제외
           return String(r.대표차종).trim() !== "" || String(r.차종명).trim() !== "";
         });
 
       out.push(...hyundaiRows);
     }
 
-    // ✅ 기아차 연결
     if (URL_KIA) {
       const k = await fetchCsv(URL_KIA);
       const kRaw = matrixToRecordsByAutoHeader(parseCSVToMatrix(k), [
@@ -377,7 +360,6 @@ export async function GET(req: Request) {
       const kiaRows = kRaw
         .map((r, i) => normKia(r, i))
         .filter((r) => {
-          // ✅ 대표차종·차종명이 둘 다 비면 제외
           return String(r.대표차종).trim() !== "" || String(r.차종명).trim() !== "";
         });
 
@@ -385,11 +367,9 @@ export async function GET(req: Request) {
     }
   }
 
-  // ================== 검색 (동의어 확장 포함) ==================
   let rows = out;
 
   if (q && q.trim()) {
-    // [Fix] 수정된 loadSynonyms 호출 (배열 보장)
     const syns = await loadSynonyms();
     const tokens = q.trim().split(/[\s,]+/g).filter(Boolean);
     const expanded = expandQueryTokens(tokens, syns);
@@ -402,8 +382,3 @@ export async function GET(req: Request) {
 
   return NextResponse.json({ rows, count: rows.length }, { headers: { "Cache-Control": "no-store" } });
 }
-
-
-// ✅ Node 런타임 고정 (Edge 방지)
-export const runtime = "nodejs";
-export const dynamic = "force-dynamic";
