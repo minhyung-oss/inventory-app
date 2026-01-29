@@ -440,7 +440,12 @@ export default function Page() {
       if (qs.strategy) cats.push("strategy");
       if (qs.general) cats.push("general");
 
-      const url = `/api/inventory?category=${encodeURIComponent(cats.join(","))}&q=${encodeURIComponent(qs.q ?? "")}`;
+            const qNorm = (qs.q ?? "")
+        .replaceAll(",", " ")
+        .replace(/\s+/g, " ")
+        .trim();
+
+      const url = `/api/inventory?category=${encodeURIComponent(cats.join(","))}&q=${encodeURIComponent(qNorm)}`;
       const res = await fetch(url, { cache: "no-store" });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
