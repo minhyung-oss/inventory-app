@@ -1,0 +1,1251 @@
+:root{
+  --bg:#ffffff;
+  --muted:#f4f6f8;
+  --text:#111827;
+  --line:#e5e7eb;
+  --primary:#111827;
+  --accent:#10b981;
+  --shadow:0 1px 2px rgba(0,0,0,.06);
+}
+
+*{ box-sizing:border-box; }
+html,body{
+  height:100%;
+  margin:0;
+  background:var(--bg);
+  color:var(--text);
+  font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, "Malgun Gothic", Arial, "Apple SD Gothic Neo";
+}
+
+.page{
+  min-height:100vh;
+  padding: 18px 18px 26px;
+}
+
+.topbar{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  padding: 10px 12px;
+  border:1px solid var(--line);
+  border-radius:10px;
+  background:#fff;
+  box-shadow: var(--shadow);
+}
+
+.chk{
+  display:flex;
+  align-items:center;
+  gap:12px;
+  margin-right: 6px;
+  flex: 0 0 auto;
+}
+.chk label{
+  display:flex;
+  align-items:center;
+  gap:6px;
+  font-size:13px;
+  user-select:none;
+  white-space:nowrap;
+}
+.chk input{ width:16px; height:16px; }
+
+.search{
+  flex: 1 1 auto;
+  min-width: 240px;
+  height: 40px;
+  border:1px solid var(--line);
+  border-radius:10px;
+  padding: 0 12px;
+  font-size:14px;
+  outline:none;
+}
+.search:focus{ border-color:#9ca3af; }
+
+.btn{
+  height: 40px;
+  padding: 0 14px;
+  border-radius:10px;
+  font-weight:700;
+  cursor:pointer;
+  border:1px solid var(--line);
+  background:#fff;
+  white-space:nowrap;
+}
+.btn.primary{
+  background: var(--primary);
+  color:#fff;
+  border-color: var(--primary);
+}
+.btn.accent{
+  background: var(--accent);
+  color:#fff;
+  border-color: var(--accent);
+}
+.btn:disabled{
+  opacity:.45;
+  cursor:not-allowed;
+}
+
+.sectionTitle{
+  margin: 14px 2px 8px;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  color:#111827;
+  font-weight:800;
+}
+.sectionTitle .left{
+  display:flex;
+  align-items:center;
+  gap:8px;
+}
+.badge{
+  font-size:12px;
+  padding: 2px 8px;
+  border-radius:999px;
+  background: var(--muted);
+  border:1px solid var(--line);
+  color:#374151;
+}
+
+.gridWrap{
+  margin-top: 6px;
+  border:1px solid var(--line);
+  border-radius:10px;
+  overflow:hidden;
+  background:#fff;
+  box-shadow: var(--shadow);
+  height: calc(100vh - 140px);
+  min-height: 520px;
+  position: relative; /* 로딩 오버레이용 */
+}
+
+/* AG Grid base */
+.ag-theme-quartz, .ag-theme-alpine{ font-size:13px; }
+
+/* 헤더 중앙정렬 */
+.ag-header-cell-label{ justify-content:center !important; width:100% !important; }
+.ag-header-cell-text{ width:100% !important; text-align:center !important; }
+
+/* 셀 세로 가운데 정렬 */
+.ag-cell{ display:flex !important; align-items:center !important; }
+
+/* no wrap + ellipsis */
+.ag-cell-value, .ag-cell{
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+}
+
+/* tooltipOnlyWhenTruncated 판정 안정화 */
+.ag-theme-quartz .ag-cell-value{
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 숫자 우측정렬 */
+.cell-right{ justify-content:flex-end !important; text-align:right !important; }
+.cell-right .ag-cell-value{
+  width:100% !important;
+  text-align:right !important;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 일반 중앙정렬 유틸 */
+.cell-center{ justify-content:center !important; text-align:center !important; }
+.cell-center .ag-cell-value{ width:100% !important; text-align:center !important; }
+
+/* ✅ 셀 클릭 포커스/테두리 “티” 제거 */
+.ag-cell-focus, .ag-cell-focus:focus, .ag-cell:focus{
+  outline: none !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+/* 헤더 메뉴/필터 아이콘 숨김 */
+.ag-header-cell-menu-button,
+.ag-header-icon.ag-header-cell-menu-button,
+.ag-header-icon.ag-header-cell-filter-button,
+.ag-header-cell-filter-button{
+  display:none !important;
+  width:0 !important;
+  height:0 !important;
+  opacity:0 !important;
+}
+
+/* ✅ 그리드 세로 구분선(열 구분선) */
+.ag-theme-quartz .ag-cell{
+  border-right: 1px solid var(--line) !important;
+}
+.ag-theme-quartz .ag-row .ag-cell:last-child{
+  border-right: none !important;
+}
+
+/* 헤더(제목행) 세로선 */
+.ag-theme-quartz .ag-header-cell{
+  border-right: 1px solid var(--line) !important;
+}
+.ag-theme-quartz .ag-header-row .ag-header-cell:last-child{
+  border-right: none !important;
+}
+
+/* AG Grid 제목행 기본 구분선(기본 separator) 제거 */
+.ag-theme-quartz .ag-header-cell::after,
+.ag-theme-quartz .ag-header-group-cell::after{
+  display:none !important;
+}
+.ag-theme-quartz .ag-header-cell-resize::after{
+  display:none !important;
+}
+
+/* AG Grid Tooltip - polished */
+.ag-tooltip.inv-tooltip{
+  background: rgba(15, 23, 42, 0.92);
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-size: 12.5px;
+  line-height: 1.35;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.35);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  max-width: 520px;
+  white-space: normal;
+  word-break: break-word;
+}
+.ag-tooltip.inv-tooltip *{ margin:0; padding:0; }
+
+/* (A) Truncation tooltip: subtle / compact */
+.ag-tooltip.inv-tooltip-trunc{
+  background: rgba(17, 24, 39, 0.92);
+  color: rgba(255, 255, 255, 0.92);
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  border-radius: 9px;
+  padding: 8px 10px;
+  font-size: 12px;
+  line-height: 1.35;
+  box-shadow: 0 10px 24px rgba(0,0,0,0.25);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  max-width: 520px;
+  white-space: normal;
+  word-break: break-word;
+}
+
+/* (B) Keyword help tooltip (future feature) */
+.kw{
+  position: relative;
+  cursor: help;
+  text-decoration: underline;
+  text-decoration-style: dotted;
+  text-underline-offset: 2px;
+}
+.kw .kwtip{
+  position:absolute;
+  left:50%;
+  bottom: calc(100% + 10px);
+  transform: translateX(-50%) translateY(4px);
+  min-width:220px;
+  max-width:360px;
+  padding:10px 12px;
+  border-radius:12px;
+  background: rgba(255, 255, 255, 0.98);
+  color: rgba(15, 23, 42, 0.92);
+  border: 1px solid rgba(15, 23, 42, 0.10);
+  box-shadow: 0 18px 44px rgba(0,0,0,0.22);
+  opacity:0;
+  pointer-events:none;
+  transition: opacity 120ms ease, transform 120ms ease;
+  z-index:9999;
+}
+.kw .kwtip::after{
+  content:"";
+  position:absolute;
+  top:100%;
+  left:50%;
+  transform: translateX(-50%);
+  border: 8px solid transparent;
+  border-top-color: rgba(255, 255, 255, 0.98);
+  filter: drop-shadow(0 3px 2px rgba(0,0,0,0.12));
+}
+.kw:hover .kwtip{
+  opacity:1;
+  pointer-events:auto;
+  transform: translateX(-50%) translateY(0px);
+}
+.kwtip .t{ font-weight:800; font-size:12.5px; margin-bottom:6px; }
+.kwtip .d{ font-size:12px; line-height:1.45; color: rgba(30, 41, 59, 0.92); }
+
+/* ✅ Hover 툴팁(셀 전체내용) – 기본 툴팁과 분리 */
+.inv-tooltip-cell{ opacity:1 !important; }
+.inv-tooltip-cell .inv-tooltip-cell__inner{
+  max-width:520px;
+  padding:10px 14px;
+  background:#111827;
+  color:#f9fafb;
+  font-size:14px;
+  line-height:1.55;
+  border-radius:8px;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.35);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* ===========================
+   ✅ 조회중(로딩) 오버레이
+   =========================== */
+.gridLoading{
+  position:absolute;
+  inset:0;
+  z-index:50;
+  background: rgba(255,255,255,0.62);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  pointer-events: all; /* 아래 그리드 클릭 차단 */
+}
+.gridLoadingCard{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  padding:10px 14px;
+  border:1px solid var(--line);
+  border-radius:12px;
+  background: rgba(255,255,255,0.92);
+  box-shadow: 0 10px 24px rgba(0,0,0,0.10);
+}
+.spinner{
+  width:18px;
+  height:18px;
+  border-radius:999px;
+  border: 2px solid rgba(17,24,39,0.15);
+  border-top-color: rgba(17,24,39,0.75);
+  animation: invspin 0.8s linear infinite;
+}
+@keyframes invspin{ to { transform: rotate(360deg); } }
+.gridLoadingText{ font-weight:900; font-size:13px; color:#111827; }
+.gridLoadingSub{ font-size:12px; color:#6b7280; }
+
+/* ===========================
+   Simple dialog
+   =========================== */
+.backdrop{
+  position:fixed;
+  inset:0;
+  background: rgba(0,0,0,.30);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  padding: 18px;
+  overflow: auto; /* 아주 작은 화면 안전장치 */
+}
+
+.dialog{
+  width: min(920px, 96vw);
+  background:#fff;
+  border-radius: 14px;
+  border:1px solid var(--line);
+  box-shadow: 0 10px 25px rgba(0,0,0,.18);
+  overflow:hidden;
+
+  /* ✅ 요청: 세로로 안 보일 때 모달 내부 스크롤 */
+  max-height: calc(100vh - 36px);
+  display: flex;
+  flex-direction: column;
+}
+
+.dialogHeader{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  padding: 12px 14px;
+  border-bottom:1px solid var(--line);
+  font-weight:800;
+  flex: 0 0 auto;
+}
+
+.dialogBody{
+  padding: 14px;
+
+  /* ✅ 요청: 본문에 세로 스크롤 */
+  overflow-y: auto;
+  max-height: calc(100vh - 120px);
+}
+
+/* kv generic */
+.kv{
+  display:grid;
+  grid-template-columns: 120px 1fr;
+  gap: 8px 10px;
+  font-size:13px;
+}
+.kv div:nth-child(odd){ color:#374151; font-weight:700; }
+.kv div:nth-child(even){ color:#111827; }
+
+.pre{
+  margin-top: 12px;
+  background: #0b1020;
+  color: #e5e7eb;
+  border-radius: 10px;
+  padding: 12px;
+  white-space: pre-wrap;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size:12px;
+}
+
+.smallRow{
+  display:flex;
+  gap:10px;
+  margin-top: 10px;
+  align-items:center;
+}
+
+/* ===========================
+   ✅ 견적 생성 모달 레이아웃 (디자인 통합)
+   =========================== */
+
+/* 전체 레이아웃: 좌우 5:5 비율 + 중앙 간격 확보 */
+.quoteLayout{
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 40px;
+  align-items: start;
+  min-height: 480px;
+}
+
+/* --- 좌측: 차량 정보 --- */
+.quoteInfo{
+  border-right: 1px solid #e5e7eb;
+  padding-right: 40px;
+  height: 100%;
+}
+
+/* 제목 스타일 공통화 */
+.quoteTitle,
+.contractHeader{
+  font-size: 18px;
+  font-weight: 800;
+  color: #111827;
+  margin: 0 0 20px 0;
+  padding-bottom: 12px;
+  border-bottom: 2px solid #111827;
+}
+
+/* 좌측 Key-Value */
+.kv.quoteKv{
+  display: grid;
+  grid-template-columns: 100px 1fr;
+  gap: 12px 0;
+  align-items: baseline;
+}
+.kv.quoteKv div:nth-child(odd){
+  color:#6b7280;
+  font-weight:600;
+  font-size:13px;
+}
+.kv.quoteKv div:nth-child(even){
+  color:#111827;
+  font-weight:500;
+  font-size:14px;
+  word-break: break-all;
+  line-height: 1.4;
+}
+
+/* --- 우측: 계약 조건 --- */
+.quoteContract{
+  border:none;
+  background:transparent;
+  padding:0;
+  border-radius:0;
+  height:100%;
+}
+
+.contractGrid{
+  display:grid;
+  grid-template-columns: 90px 1fr;
+  gap: 16px 10px;
+  align-items: center;
+}
+.contractGrid label{
+  color:#6b7280;
+  font-weight:600;
+  font-size:13px;
+}
+
+.invSelect,
+.invInput,
+.contractGrid textarea{
+  width:100%;
+  height:36px;
+  border:1px solid #d1d5db;
+  border-radius:6px;
+  padding:0 10px;
+  background-color:#fff;
+  font-size:13px;
+  color:#111827;
+  transition: all 0.2s ease;
+  outline:none;
+}
+
+.contractGrid textarea{
+  height:60px;
+  padding:8px 10px;
+  resize:none;
+  font-family: inherit;
+}
+
+.invSelect:focus,
+.invInput:focus,
+.contractGrid textarea:focus{
+  border-color:#3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.invInput:disabled{
+  background-color:#f3f4f6;
+  color:#9ca3af;
+  cursor:not-allowed;
+}
+
+.contractGrid .inline{
+  display:grid;
+  grid-template-columns: 1fr 1fr;
+  gap:8px;
+}
+
+.quoteActions{
+  display:flex;
+  justify-content:flex-end;
+  align-items:center;
+  gap:12px;
+  margin-top:24px;
+  padding-top:20px;
+  border-top: 1px solid #e5e7eb;
+}
+
+.copyHint{
+  font-size:12px;
+  color:#6b7280;
+  margin-right:auto;
+}
+
+/* ✅ 요청: 계약 조건 아래 안내문(※) 10pt + 빨간색 */
+.quoteWarn{
+  margin-top: 10px;
+  font-size: 10pt;
+  color: #ef4444;
+  line-height: 1.45;
+  white-space: pre-line;
+}
+/* ✅ 견적 생성 안내문(※) : 10pt + 빨간색 + 위로 한줄 여백 */
+.quoteNotice{
+  margin-top: 16px;          /* ← "위로 한줄 더띄우고 시작" */
+  font-size: 10pt;
+  color: #ef4444;
+  line-height: 1.45;
+  white-space: pre-line;
+}
+:root{
+  --bg:#ffffff;
+  --muted:#f4f6f8;
+  --text:#111827;
+  --line:#e5e7eb;
+  --primary:#111827;
+  --accent:#10b981;
+  --shadow:0 1px 2px rgba(0,0,0,.06);
+}
+
+*{ box-sizing:border-box; }
+html,body{
+  height:100%;
+  margin:0;
+  background:var(--bg);
+  color:var(--text);
+  font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, "Malgun Gothic", Arial, "Apple SD Gothic Neo";
+}
+
+.page{
+  min-height:100vh;
+  padding: 18px 18px 26px;
+}
+
+.topbar{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  padding: 10px 12px;
+  border:1px solid var(--line);
+  border-radius:10px;
+  background:#fff;
+  box-shadow: var(--shadow);
+}
+
+.chk{
+  display:flex;
+  align-items:center;
+  gap:12px;
+  margin-right: 6px;
+  flex: 0 0 auto;
+}
+.chk label{
+  display:flex;
+  align-items:center;
+  gap:6px;
+  font-size:13px;
+  user-select:none;
+  white-space:nowrap;
+}
+.chk input{ width:16px; height:16px; }
+
+.search{
+  flex: 1 1 auto;
+  min-width: 240px;
+  height: 40px;
+  border:1px solid var(--line);
+  border-radius:10px;
+  padding: 0 12px;
+  font-size:14px;
+  outline:none;
+}
+.search:focus{ border-color:#9ca3af; }
+
+.btn{
+  height: 40px;
+  padding: 0 14px;
+  border-radius:10px;
+  font-weight:700;
+  cursor:pointer;
+  border:1px solid var(--line);
+  background:#fff;
+  white-space:nowrap;
+}
+.btn.primary{
+  background: var(--primary);
+  color:#fff;
+  border-color: var(--primary);
+}
+.btn.accent{
+  background: var(--accent);
+  color:#fff;
+  border-color: var(--accent);
+}
+.btn:disabled{
+  opacity:.45;
+  cursor:not-allowed;
+}
+
+.sectionTitle{
+  margin: 14px 2px 8px;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  color:#111827;
+  font-weight:800;
+}
+.sectionTitle .left{
+  display:flex;
+  align-items:center;
+  gap:8px;
+}
+.badge{
+  font-size:12px;
+  padding: 2px 8px;
+  border-radius:999px;
+  background: var(--muted);
+  border:1px solid var(--line);
+  color:#374151;
+}
+
+.gridWrap{
+  margin-top: 6px;
+  border:1px solid var(--line);
+  border-radius:10px;
+  overflow:hidden;
+  background:#fff;
+  box-shadow: var(--shadow);
+  height: calc(100vh - 140px);
+  min-height: 520px;
+  position: relative; /* 로딩 오버레이용 */
+}
+
+/* AG Grid base */
+.ag-theme-quartz, .ag-theme-alpine{ font-size:13px; }
+
+/* 헤더 중앙정렬 */
+.ag-header-cell-label{ justify-content:center !important; width:100% !important; }
+.ag-header-cell-text{ width:100% !important; text-align:center !important; }
+
+/* 셀 세로 가운데 정렬 */
+.ag-cell{ display:flex !important; align-items:center !important; }
+
+/* no wrap + ellipsis */
+.ag-cell-value, .ag-cell{
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+}
+
+/* tooltipOnlyWhenTruncated 판정 안정화 */
+.ag-theme-quartz .ag-cell-value{
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 숫자 우측정렬 */
+.cell-right{ justify-content:flex-end !important; text-align:right !important; }
+.cell-right .ag-cell-value{
+  width:100% !important;
+  text-align:right !important;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 일반 중앙정렬 유틸 */
+.cell-center{ justify-content:center !important; text-align:center !important; }
+.cell-center .ag-cell-value{ width:100% !important; text-align:center !important; }
+
+/* ✅ 셀 클릭 포커스/테두리 “티” 제거 */
+.ag-cell-focus, .ag-cell-focus:focus, .ag-cell:focus{
+  outline: none !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+/* 헤더 메뉴/필터 아이콘 숨김 */
+.ag-header-cell-menu-button,
+.ag-header-icon.ag-header-cell-menu-button,
+.ag-header-icon.ag-header-cell-filter-button,
+.ag-header-cell-filter-button{
+  display:none !important;
+  width:0 !important;
+  height:0 !important;
+  opacity:0 !important;
+}
+
+/* ✅ 그리드 세로 구분선(열 구분선) */
+.ag-theme-quartz .ag-cell{
+  border-right: 1px solid var(--line) !important;
+}
+.ag-theme-quartz .ag-row .ag-cell:last-child{
+  border-right: none !important;
+}
+
+/* 헤더(제목행) 세로선 */
+.ag-theme-quartz .ag-header-cell{
+  border-right: 1px solid var(--line) !important;
+}
+.ag-theme-quartz .ag-header-row .ag-header-cell:last-child{
+  border-right: none !important;
+}
+
+/* AG Grid 제목행 기본 구분선(기본 separator) 제거 */
+.ag-theme-quartz .ag-header-cell::after,
+.ag-theme-quartz .ag-header-group-cell::after{
+  display:none !important;
+}
+.ag-theme-quartz .ag-header-cell-resize::after{
+  display:none !important;
+}
+
+/* AG Grid Tooltip - polished */
+.ag-tooltip.inv-tooltip{
+  background: rgba(15, 23, 42, 0.92);
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-size: 12.5px;
+  line-height: 1.35;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.35);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  max-width: 520px;
+  white-space: normal;
+  word-break: break-word;
+}
+.ag-tooltip.inv-tooltip *{ margin:0; padding:0; }
+
+/* (A) Truncation tooltip: subtle / compact */
+.ag-tooltip.inv-tooltip-trunc{
+  background: rgba(17, 24, 39, 0.92);
+  color: rgba(255, 255, 255, 0.92);
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  border-radius: 9px;
+  padding: 8px 10px;
+  font-size: 12px;
+  line-height: 1.35;
+  box-shadow: 0 10px 24px rgba(0,0,0,0.25);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  max-width: 520px;
+  white-space: normal;
+  word-break: break-word;
+}
+
+/* (B) Keyword help tooltip (future feature) */
+.kw{
+  position: relative;
+  cursor: help;
+  text-decoration: underline;
+  text-decoration-style: dotted;
+  text-underline-offset: 2px;
+}
+.kw .kwtip{
+  position:absolute;
+  left:50%;
+  bottom: calc(100% + 10px);
+  transform: translateX(-50%) translateY(4px);
+  min-width:220px;
+  max-width:360px;
+  padding:10px 12px;
+  border-radius:12px;
+  background: rgba(255, 255, 255, 0.98);
+  color: rgba(15, 23, 42, 0.92);
+  border: 1px solid rgba(15, 23, 42, 0.10);
+  box-shadow: 0 18px 44px rgba(0,0,0,0.22);
+  opacity:0;
+  pointer-events:none;
+  transition: opacity 120ms ease, transform 120ms ease;
+  z-index:9999;
+}
+.kw .kwtip::after{
+  content:"";
+  position:absolute;
+  top:100%;
+  left:50%;
+  transform: translateX(-50%);
+  border: 8px solid transparent;
+  border-top-color: rgba(255, 255, 255, 0.98);
+  filter: drop-shadow(0 3px 2px rgba(0,0,0,0.12));
+}
+.kw:hover .kwtip{
+  opacity:1;
+  pointer-events:auto;
+  transform: translateX(-50%) translateY(0px);
+}
+.kwtip .t{ font-weight:800; font-size:12.5px; margin-bottom:6px; }
+.kwtip .d{ font-size:12px; line-height:1.45; color: rgba(30, 41, 59, 0.92); }
+
+/* ✅ Hover 툴팁(셀 전체내용) – 기본 툴팁과 분리 */
+.inv-tooltip-cell{ opacity:1 !important; }
+.inv-tooltip-cell .inv-tooltip-cell__inner{
+  max-width:520px;
+  padding:10px 14px;
+  background:#111827;
+  color:#f9fafb;
+  font-size:14px;
+  line-height:1.55;
+  border-radius:8px;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.35);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* ===========================
+   ✅ 조회중(로딩) 오버레이
+   =========================== */
+.gridLoading{
+  position:absolute;
+  inset:0;
+  z-index:50;
+  background: rgba(255,255,255,0.62);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  pointer-events: all; /* 아래 그리드 클릭 차단 */
+}
+.gridLoadingCard{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  padding:10px 14px;
+  border:1px solid var(--line);
+  border-radius:12px;
+  background: rgba(255,255,255,0.92);
+  box-shadow: 0 10px 24px rgba(0,0,0,0.10);
+}
+.spinner{
+  width:18px;
+  height:18px;
+  border-radius:999px;
+  border: 2px solid rgba(17,24,39,0.15);
+  border-top-color: rgba(17,24,39,0.75);
+  animation: invspin 0.8s linear infinite;
+}
+@keyframes invspin{ to { transform: rotate(360deg); } }
+.gridLoadingText{ font-weight:900; font-size:13px; color:#111827; }
+.gridLoadingSub{ font-size:12px; color:#6b7280; }
+
+/* ===========================
+   Simple dialog
+   =========================== */
+.backdrop{
+  position:fixed;
+  inset:0;
+  background: rgba(0,0,0,.30);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  padding: 18px;
+  overflow: auto; /* 아주 작은 화면 안전장치 */
+}
+
+.dialog{
+  width: min(920px, 96vw);
+  background:#fff;
+  border-radius: 14px;
+  border:1px solid var(--line);
+  box-shadow: 0 10px 25px rgba(0,0,0,.18);
+  overflow:hidden;
+
+  /* ✅ 요청: 세로로 안 보일 때 모달 내부 스크롤 */
+  max-height: calc(100vh - 36px);
+  display: flex;
+  flex-direction: column;
+}
+
+.dialogHeader{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  padding: 12px 14px;
+  border-bottom:1px solid var(--line);
+  font-weight:800;
+  flex: 0 0 auto;
+}
+
+.dialogBody{
+  padding: 14px;
+
+  /* ✅ 요청: 본문에 세로 스크롤 */
+  overflow-y: auto;
+  max-height: calc(100vh - 120px);
+}
+
+/* kv generic */
+.kv{
+  display:grid;
+  grid-template-columns: 120px 1fr;
+  gap: 8px 10px;
+  font-size:13px;
+}
+.kv div:nth-child(odd){ color:#374151; font-weight:700; }
+.kv div:nth-child(even){ color:#111827; }
+
+.pre{
+  margin-top: 12px;
+  background: #0b1020;
+  color: #e5e7eb;
+  border-radius: 10px;
+  padding: 12px;
+  white-space: pre-wrap;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size:12px;
+}
+
+.smallRow{
+  display:flex;
+  gap:10px;
+  margin-top: 10px;
+  align-items:center;
+}
+
+/* ===========================
+   ✅ 견적 생성 모달 레이아웃 (디자인 통합)
+   =========================== */
+
+/* 전체 레이아웃: 좌우 5:5 비율 + 중앙 간격 확보 */
+.quoteLayout{
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 40px;
+  align-items: start;
+  min-height: 480px;
+}
+
+/* --- 좌측: 차량 정보 --- */
+.quoteInfo{
+  border-right: 1px solid #e5e7eb;
+  padding-right: 40px;
+  height: 100%;
+}
+
+/* 제목 스타일 공통화 */
+.quoteTitle,
+.contractHeader{
+  font-size: 18px;
+  font-weight: 800;
+  color: #111827;
+  margin: 0 0 20px 0;
+  padding-bottom: 12px;
+  border-bottom: 2px solid #111827;
+}
+
+/* 좌측 Key-Value */
+.kv.quoteKv{
+  display: grid;
+  grid-template-columns: 100px 1fr;
+  gap: 12px 0;
+  align-items: baseline;
+}
+.kv.quoteKv div:nth-child(odd){
+  color:#6b7280;
+  font-weight:600;
+  font-size:13px;
+}
+.kv.quoteKv div:nth-child(even){
+  color:#111827;
+  font-weight:500;
+  font-size:14px;
+  word-break: break-all;
+  line-height: 1.4;
+}
+
+/* --- 우측: 계약 조건 --- */
+.quoteContract{
+  border:none;
+  background:transparent;
+  padding:0;
+  border-radius:0;
+  height:100%;
+}
+
+.contractGrid{
+  display:grid;
+  grid-template-columns: 90px 1fr;
+  gap: 16px 10px;
+  align-items: center;
+}
+.contractGrid label{
+  color:#6b7280;
+  font-weight:600;
+  font-size:13px;
+}
+
+.invSelect,
+.invInput,
+.contractGrid textarea{
+  width:100%;
+  height:36px;
+  border:1px solid #d1d5db;
+  border-radius:6px;
+  padding:0 10px;
+  background-color:#fff;
+  font-size:13px;
+  color:#111827;
+  transition: all 0.2s ease;
+  outline:none;
+}
+
+.contractGrid textarea{
+  height:60px;
+  padding:8px 10px;
+  resize:none;
+  font-family: inherit;
+}
+
+.invSelect:focus,
+.invInput:focus,
+.contractGrid textarea:focus{
+  border-color:#3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.invInput:disabled{
+  background-color:#f3f4f6;
+  color:#9ca3af;
+  cursor:not-allowed;
+}
+
+.contractGrid .inline{
+  display:grid;
+  grid-template-columns: 1fr 1fr;
+  gap:8px;
+}
+
+.quoteActions{
+  display:flex;
+  justify-content:flex-end;
+  align-items:center;
+  gap:12px;
+  margin-top:24px;
+  padding-top:20px;
+  border-top: 1px solid #e5e7eb;
+}
+
+.copyHint{
+  font-size:12px;
+  color:#6b7280;
+  margin-right:auto;
+}
+
+/* ✅ 요청: 계약 조건 아래 안내문(※) 10pt + 빨간색 */
+.quoteWarn{
+  margin-top: 10px;
+  font-size: 10pt;
+  color: #ef4444;
+  line-height: 1.45;
+  white-space: pre-line;
+}
+/* ✅ 견적 생성 안내문(※) : 10pt + 빨간색 + 위로 한줄 여백 */
+.quoteNotice{
+  margin-top: 16px;
+  font-size: 10pt;
+  color: #ef4444;
+  line-height: 1.45;
+  white-space: pre-line;
+}
+
+/* ================== 설정 관리(동의어) ================== */
+.settingsDialog{
+  width: min(980px, calc(100vw - 24px));
+  max-height: calc(100vh - 70px);
+}
+
+.settingsSectionTitle{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:12px;
+  margin-bottom: 10px;
+}
+
+.settingsSectionTitle .left{
+  display:flex;
+  align-items:center;
+  gap:10px;
+}
+
+.settingsHint{
+  color:#6b7280;
+  font-size: 12px;
+  line-height: 1.35;
+  text-align:right;
+  max-width: 520px;
+}
+
+.settingsForm{
+  border: 1px solid var(--line);
+  background: #fff;
+  border-radius: 12px;
+  padding: 12px;
+  box-shadow: var(--shadow);
+  margin-bottom: 12px;
+}
+
+.settingsGrid{
+  display:grid;
+  grid-template-columns: 220px 1fr;
+  gap: 10px 12px;
+  align-items:start;
+}
+
+.settingsGrid label{
+  color:#374151;
+  font-weight:800;
+  font-size: 13px;
+  padding-top: 8px;
+}
+
+.settingsGrid input,
+.settingsGrid textarea{
+  width:100%;
+  border:1px solid var(--line);
+  background: #fff;
+  border-radius: 10px;
+  padding: 10px 10px;
+  font-size: 13px;
+  outline:none;
+}
+
+.settingsGrid textarea{
+  min-height: 90px;
+  resize: vertical;
+}
+
+.settingsActions{
+  display:flex;
+  gap:10px;
+  justify-content:flex-end;
+  margin-top: 10px;
+}
+
+.settingsEditNote{
+  margin-top: 8px;
+  font-size: 12px;
+  color:#6b7280;
+}
+
+.settingsTableWrap{
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  overflow:hidden;
+}
+
+.settingsTable{
+  width:100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.settingsTable thead th{
+  background: var(--muted);
+  color:#374151;
+  font-weight:900;
+  text-align:left;
+  padding: 10px 10px;
+  border-bottom: 1px solid var(--line);
+}
+
+.settingsTable tbody td{
+  padding: 10px 10px;
+  border-bottom: 1px solid var(--line);
+  vertical-align: top;
+}
+
+.settingsEmpty{
+  text-align:center;
+  color:#6b7280;
+  padding: 18px 10px !important;
+}
+
+.settingsCanonical{
+  font-weight:900;
+}
+
+.settingsAliases{
+  color:#111827;
+}
+
+.settingsBtns{
+  display:flex;
+  gap:8px;
+  justify-content:flex-end;
+}
+
+.btn.danger{
+  border-color:#fecaca;
+  color:#b91c1c;
+  background:#fff;
+}
+
+.btn.danger:hover{
+  background:#fef2f2;
+}
+
+.settingsFootnote{
+  margin-top: 10px;
+  font-size: 12px;
+  color:#6b7280;
+}
