@@ -6,9 +6,9 @@ import type { GridApi, GridReadyEvent, ColDef } from "ag-grid-community";
 import "ag-grid-community/styles/ag-grid.css";
 import "ag-grid-community/styles/ag-theme-quartz.css";
 
-import type { InventoryRow } from "../lib/types";
-import { columnDefs, STORAGE_KEYS, fmtNum } from "../lib/columns";
-import CellHoverTooltip from "../components/CellHoverTooltip";
+import type { InventoryRow } from "@/lib/types";
+import { columnDefs, STORAGE_KEYS, fmtNum } from "@/lib/columns";
+import CellHoverTooltip from "@/components/CellHoverTooltip";
 
 type QueryState = {
   strategy: boolean;
@@ -133,6 +133,10 @@ export default function Page() {
     try {
       setSynLoading(true);
       const res = await fetch("/api/synonyms", { cache: "no-store" });
+      if (!res.ok) {
+        const msg = await res.text().catch(() => "");
+        throw new Error(`GET /api/synonyms failed: ${res.status} ${msg}`);
+      }
       const data = await res.json();
       setSynRows(Array.isArray(data.rows) ? data.rows : []);
     } catch (e) {
@@ -175,17 +179,27 @@ export default function Page() {
         .filter(Boolean);
 
       if (synEditKey) {
-        await fetch("/api/synonyms", {
+        const res = await fetch("/api/synonyms", {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ canonical: synEditKey, newCanonical: canonical, aliases }),
+          cache: "no-store",
         });
+        if (!res.ok) {
+          const msg = await res.text().catch(() => "");
+          throw new Error(`PUT /api/synonyms failed: ${res.status} ${msg}`);
+        }
       } else {
-        await fetch("/api/synonyms", {
+        const res = await fetch("/api/synonyms", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ canonical, aliases }),
+          cache: "no-store",
         });
+        if (!res.ok) {
+          const msg = await res.text().catch(() => "");
+          throw new Error(`POST /api/synonyms failed: ${res.status} ${msg}`);
+        }
       }
 
       await loadSynonyms();
@@ -209,7 +223,14 @@ export default function Page() {
     if (!confirm(`삭제할까요? (${canonical})`)) return;
     try {
       setSynLoading(true);
-      await fetch(`/api/synonyms?canonical=${encodeURIComponent(canonical)}`, { method: "DELETE" });
+      const res = await fetch(`/api/synonyms?canonical=${encodeURIComponent(canonical)}`, {
+        method: "DELETE",
+        cache: "no-store",
+      });
+      if (!res.ok) {
+        const msg = await res.text().catch(() => "");
+        throw new Error(`DELETE /api/synonyms failed: ${res.status} ${msg}`);
+      }
       await loadSynonyms();
       if (synEditKey && synEditKey === canonical) resetSynForm();
     } catch (e) {
@@ -440,12 +461,7 @@ export default function Page() {
       if (qs.strategy) cats.push("strategy");
       if (qs.general) cats.push("general");
 
-            const qNorm = (qs.q ?? "")
-        .replaceAll(",", " ")
-        .replace(/\s+/g, " ")
-        .trim();
-
-      const url = `/api/inventory?category=${encodeURIComponent(cats.join(","))}&q=${encodeURIComponent(qNorm)}`;
+      const url = `/api/inventory?category=${encodeURIComponent(cats.join(","))}&q=${encodeURIComponent(qs.q ?? "")}`;
       const res = await fetch(url, { cache: "no-store" });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
@@ -625,6 +641,8 @@ const quoteText = useMemo(() => {
             suppressDragLeaveHidesColumns={true}
 
             suppressAutoSize={true}
+            suppressSizeToFit={true}
+
             enableBrowserTooltips={false}
             tooltipComponent={CellHoverTooltip}
             tooltipShowDelay={0}
