@@ -6,9 +6,9 @@ import type { GridApi, GridReadyEvent, ColDef } from "ag-grid-community";
 import "ag-grid-community/styles/ag-grid.css";
 import "ag-grid-community/styles/ag-theme-quartz.css";
 
-import type { InventoryRow } from "@/lib/types";
-import { columnDefs, STORAGE_KEYS, fmtNum } from "@/lib/columns";
-import CellHoverTooltip from "@/components/CellHoverTooltip";
+import type { InventoryRow } from "../lib/types";
+import { columnDefs, STORAGE_KEYS, fmtNum } from "../lib/columns";
+import CellHoverTooltip from "../components/CellHoverTooltip";
 
 type QueryState = {
   strategy: boolean;
@@ -625,8 +625,6 @@ const quoteText = useMemo(() => {
             suppressDragLeaveHidesColumns={true}
 
             suppressAutoSize={true}
-            suppressSizeToFit={true}
-
             enableBrowserTooltips={false}
             tooltipComponent={CellHoverTooltip}
             tooltipShowDelay={0}

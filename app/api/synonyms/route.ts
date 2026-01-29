@@ -80,3 +80,5 @@ export async function DELETE(req: Request) {
   await writeSynonyms(rows);
   return NextResponse.json({ success: true });
 }
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
