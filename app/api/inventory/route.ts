@@ -223,11 +223,10 @@ function normKia(r: Record<string, string>, idx: number) {
 }
 
 // ================== 동의어(검색어 별명) ==================
-// ✅ 로컬 서버(Node 런타임)에서만 파일 저장/수정 가능
-// data/synonyms.json 구조 예:
-// [{ "canonical":"AVANTE", "aliases":["아반떼","아반테","아반퉤"] }]
-import { promises as fs } from "fs";
-import path from "path";
+// ================== Synonyms (Vercel KV / Upstash Redis) ==================
+// ✅ Vercel 서버리스에서는 파일(fs.writeFile) 영구저장이 불가하므로 KV(Redis)를 사용합니다.
+// KV 저장 키 (synonyms 설정관리에서 저장하는 키와 동일)
+import { kv } from "@vercel/kv";
 
 type SynRow = { canonical: string; aliases: string[] };
 
@@ -235,25 +234,18 @@ function normText(s: string) {
   return String(s ?? "").trim().toLowerCase();
 }
 
-function synonymsFilePath() {
-  return path.join(process.cwd(), "data", "synonyms.json");
-}
+const SYN_KV_KEY = "synonyms:rows";
 
 async function loadSynonyms(): Promise<SynRow[]> {
-  try {
-    const p = synonymsFilePath();
-    const buf = await fs.readFile(p, "utf-8");
-    const arr = JSON.parse(buf);
-    if (!Array.isArray(arr)) return [];
-    return arr
-      .map((x: any) => ({
-        canonical: String(x?.canonical ?? "").trim(),
-        aliases: Array.isArray(x?.aliases) ? x.aliases.map((a: any) => String(a ?? "").trim()).filter(Boolean) : [],
-      }))
-      .filter((x: SynRow) => x.canonical);
-  } catch {
-    return [];
-  }
+  // KV에 저장된 rows를 가져온다. 없으면 빈 배열.
+  const rows = await kv.get<SynRow[]>(SYN_KV_KEY);
+  if (!Array.isArray(rows)) return [];
+  return rows
+    .map((x: any) => ({
+      canonical: String(x?.canonical ?? "").trim(),
+      aliases: Array.isArray(x?.aliases) ? x.aliases.map((a: any) => String(a)) : [],
+    }))
+    .filter((r) => r.canonical || (r.aliases?.length ?? 0) > 0);
 }
 
 function expandQueryTokens(tokens: string[], syns: SynRow[]) {
@@ -384,7 +376,7 @@ let rows = out;
 
 if (q && q.trim()) {
   const syns = await loadSynonyms();
-  const tokens = q.trim().split(/\s+/g).filter(Boolean);
+  const tokens = q.trim().split(/[\s,]+/g).filter(Boolean);
   const expanded = expandQueryTokens(tokens, syns);
 
   rows = out.filter((r) => {
@@ -395,3 +387,8 @@ if (q && q.trim()) {
 
 return NextResponse.json({ rows, count: rows.length });
 }
+
+
+// ✅ Node 런타임 고정 (Edge 방지)
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
