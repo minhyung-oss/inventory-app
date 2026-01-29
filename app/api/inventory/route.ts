@@ -224,7 +224,7 @@ function normText(s: string) {
   return String(s ?? "").trim().toLowerCase();
 }
 
-const SYN_KV_KEY = "synonyms:rows";
+const SYN_KV_KEY = "inv:synonyms:v1";
 
 // ✅ 안전하게 KV 데이터 로드 (배열인지 확인)
 async function loadSynonyms(): Promise<SynRow[]> {
