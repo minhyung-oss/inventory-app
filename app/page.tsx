@@ -111,7 +111,9 @@ export default function Page() {
   const [selected, setSelected] = useState<InventoryRow | null>(null);
   const [quoteOpen, setQuoteOpen] = useState(false);
 
-  // ---------------------------------------------------------------------------
+  
+  const [quoteCopied, setQuoteCopied] = useState(false);
+// ---------------------------------------------------------------------------
   // 설정 관리: 검색어(동의어/별명) 사전 (서버 저장)
   // ---------------------------------------------------------------------------
   type SynRow = { canonical: string; aliases: string[] };
@@ -537,7 +539,36 @@ const quoteText = useMemo(() => {
     ].join("\n");
   }, [selected, clientType, term, mileage, guaranteeType, guaranteeText, insuranceAge, liability, goodsMode, goodsText, fee, notes]);
 
-  async function copyQuote() {
+  
+
+  // ✅ 견적 생성 제목 클릭 시, 표시 티 안나게 핵심 항목만 클립보드로 복사
+  const quoteHeadText = useMemo(() => {
+    if (!selected) return "";
+
+    const colors = `${selected.외장 ?? ""}${selected.외장 && selected.내장 ? "/" : ""}${selected.내장 ?? ""}`.trim();
+
+    return [
+      `- 대표차종 : ${selected.대표차종 ?? ""}`,
+      `- 차종명: ${selected.차종명 ?? ""}`,
+      `- 옵션 : ${selected.옵션 ?? ""}`,
+      `- 색상 : ${colors}`,
+      `- 차량가 : ${fmtNum(selected.가격)}`,
+      `- 즉시출고: ${fmtNum((selected as any).즉시출고)}`,
+    ].join("\n");
+  }, [selected]);
+
+  async function copyQuoteHeadSilent() {
+    try {
+      if (!quoteHeadText) return;
+      await navigator.clipboard.writeText(quoteHeadText);
+      setQuoteCopied(true);
+      window.setTimeout(() => setQuoteCopied(false), 2000);
+} catch {
+      // 실패해도 UI 티 안나게 조용히 무시
+    }
+  }
+
+async function copyQuote() {
     // 기존 alert 대신 버튼 옆에 3초 메시지
     try {
       await navigator.clipboard.writeText(quoteText);
@@ -684,7 +715,14 @@ const quoteText = useMemo(() => {
               <div className="quoteLayout">
                 {/* 좌측: 차량 정보 */}
                 <div className="quoteInfo">
-                  <div className="quoteTitle">견적 생성</div>
+                  <div className="quoteTitle" style={{ cursor: "pointer", userSelect: "none" }} onDoubleClick={copyQuoteHeadSilent}>
+                    견적 생성
+                    {quoteCopied && (
+                      <span style={{ marginLeft: 8, color: "#16a34a", fontSize: 13 }}>
+                        차량정보복사완료
+                      </span>
+                    )}
+                  </div>
                   <div className="kv quoteKv">
                     <div>구분</div>
                     <div>{selected.구분}</div>
