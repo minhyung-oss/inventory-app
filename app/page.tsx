@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
+import Image from "next/image";
 import { AgGridReact } from "ag-grid-react";
 import type { GridApi, GridReadyEvent, ColDef } from "ag-grid-community";
 import "ag-grid-community/styles/ag-grid.css";
@@ -591,56 +592,134 @@ async function copyQuote() {
 
   return (
     <div className="page">
-      <div className="topbar">
-        <div className="chk">
-          <label>
-            <input
-              type="checkbox"
-              checked={qs.strategy}
-              onChange={(e) => setQs((s) => ({ ...s, strategy: e.target.checked }))}
+      {/* ✅ 상단 헤더: 로고 + 검색/버튼(기존 기능 유지) */}
+      <header
+        className="topbar"
+        style={{
+          position: "sticky",
+          top: 0,
+          zIndex: 50,
+          background: "rgba(255,255,255,0.92)",
+          backdropFilter: "blur(10px)",
+          borderBottom: "1px solid #e5e7eb",
+          padding: "10px 14px",
+          display: "flex",
+          alignItems: "center",
+          gap: 12,
+          flexWrap: "wrap",
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 10,
+            minWidth: 240,
+            flex: "0 0 auto",
+          }}
+        >
+          <div style={{ position: "relative", width: 230, height: 36 }}>
+            {/*
+              ✅ 사용법
+              - /public/banner.png 로 저장하면 그대로 표시됩니다.
+              - 파일명이 다르면 src만 바꿔주세요.
+            */}
+            <Image
+              src="/banner.png"
+              alt="롯데렌터카 Bizcar × AUTO.ST."
+              fill
+              priority
+              sizes="230px"
+              style={{ objectFit: "contain" }}
             />
-            전략구매 적용
-          </label>
-          <label>
-            <input
-              type="checkbox"
-              checked={qs.general}
-              onChange={(e) => setQs((s) => ({ ...s, general: e.target.checked }))}
-            />
-            일반구매 적용(현대/기아 재고)
-          </label>
+          </div>
         </div>
 
-        <input
-          className="search"
-          value={qs.q}
-          onChange={(e) => setQs((s) => ({ ...s, q: e.target.value }))}
-          placeholder="차종, 옵션, 색상 등..."
-          onKeyDown={(e) => {
-            if (e.key === "Enter") onSearch();
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 10,
+            flex: "1 1 auto",
+            flexWrap: "wrap",
           }}
-        />
+        >
+          <div
+            className="chk"
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 12,
+              padding: "6px 10px",
+              border: "1px solid #e5e7eb",
+              borderRadius: 999,
+              background: "rgba(249,250,251,0.85)",
+            }}
+          >
+            <label style={{ display: "flex", alignItems: "center", gap: 6, fontWeight: 700 }}>
+              <input
+                type="checkbox"
+                checked={qs.strategy}
+                onChange={(e) => setQs((s) => ({ ...s, strategy: e.target.checked }))}
+              />
+              전략구매
+            </label>
+            <label style={{ display: "flex", alignItems: "center", gap: 6, fontWeight: 700 }}>
+              <input
+                type="checkbox"
+                checked={qs.general}
+                onChange={(e) => setQs((s) => ({ ...s, general: e.target.checked }))}
+              />
+              일반구매(현대/기아)
+            </label>
+          </div>
 
-        <button className="btn primary" onClick={onSearch} disabled={loading}>
-          {loading ? "조회중..." : "데이터 조회"}
-        </button>
+          <input
+            className="search"
+            value={qs.q}
+            onChange={(e) => setQs((s) => ({ ...s, q: e.target.value }))}
+            placeholder="차종, 옵션, 색상 등..."
+            onKeyDown={(e) => {
+              if (e.key === "Enter") onSearch();
+            }}
+            style={{
+              flex: "1 1 360px",
+              minWidth: 240,
+              height: 40,
+              borderRadius: 12,
+              border: "1px solid #e5e7eb",
+              padding: "0 12px",
+              outline: "none",
+              background: "white",
+            }}
+          />
 
-        <button className="btn accent" onClick={onQuote} disabled={!selected}>
-          견적 생성
-        </button>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+            <button className="btn primary" onClick={onSearch} disabled={loading}>
+              {loading ? "조회중..." : "데이터 조회"}
+            </button>
 
-        <button className="btn" onClick={() => {
-          if (adminAuthed) {
-            setSettingsOpen(true);
-          } else {
-            setAdminPwErr("");
-            setAdminPw("");
-            setAdminPwOpen(true);
-          }
-        }}>
-          설정 관리
-        </button>
-      </div>
+            <button className="btn accent" onClick={onQuote} disabled={!selected}>
+              견적 생성
+            </button>
+
+            <button
+              className="btn"
+              onClick={() => {
+                if (adminAuthed) {
+                  setSettingsOpen(true);
+                } else {
+                  setAdminPwErr("");
+                  setAdminPw("");
+                  setAdminPwOpen(true);
+                }
+              }}
+            >
+              설정 관리
+            </button>
+          </div>
+        </div>
+      </header>
 
       <div className="sectionTitle">
         <div className="left">
