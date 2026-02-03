@@ -90,10 +90,78 @@ function tooltipOnlyWhenTruncated(p: any): string {
 
 type SavedColWidth = { colId: string; width?: number };
 
+// ✅ PC/모바일 공통: 체크박스를 'pill' 형태로 렌더링 (디자인 통일)
+// ✅ PC/모바일 공통: 체크박스를 'pill' 형태로 렌더링 (디자인 통일)
+// - pill(라벨) 배경/글자색은 체크 여부와 무관하게 고정
+// - 체크박스는 네모(파란색, 체크 시) + 체크표시만 보이도록 네이티브 checkbox 사용 (hydration 안전)
+function PillCheckbox({
+  checked,
+  onChange,
+  children,
+}: {
+  checked: boolean;
+  onChange: (v: boolean) => void;
+  children: React.ReactNode;
+}) {
+  const base: React.CSSProperties = {
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    padding: "8px 12px",
+    borderRadius: 999,
+    border: "1px solid #d1d5db",
+    background: "#ffffff",
+    color: "#111827",
+    cursor: "pointer",
+    userSelect: "none",
+    fontWeight: 900,
+    fontSize: 13,
+    lineHeight: 1,
+    whiteSpace: "nowrap",
+  };
+
+  return (
+    <label style={base}>
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={(e) => onChange(e.target.checked)}
+        // ✅ 체크박스만 파란 네모 + 체크표시
+        style={{
+          width: "18px",
+          height: "18px",
+          flex: "0 0 auto",
+          accentColor: "#2563eb",
+          cursor: "pointer",
+        }}
+      />
+      <span>{children}</span>
+    </label>
+  );
+}
+
 export default function Page() {
   const ADMIN_SETTINGS_PASSWORD = "21482148";
   const ADMIN_FLAG_KEY = "inv_admin_authed_v1";
-  const [qs, setQs] = useState<QueryState>(() => loadQueryState());
+  const [qs, setQs] = useState<QueryState>({ strategy: true, general: false, q: "" });
+
+  // ✅ 모바일 전용 UI(카드/스와이프) 적용 여부
+  const [isMobile, setIsMobile] = useState(false);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const mql = window.matchMedia("(max-width: 767px)");
+    const apply = () => setIsMobile(!!mql.matches);
+    apply();
+    // @ts-ignore
+    if (mql.addEventListener) mql.addEventListener("change", apply);
+    else mql.addListener(apply);
+    return () => {
+      // @ts-ignore
+      if (mql.removeEventListener) mql.removeEventListener("change", apply);
+      else mql.removeListener(apply);
+    };
+  }, []);
 
   // ✅ 새 링크(첫 진입)에서는 이전 lastQuery를 무시하고 기본 체크 상태로 고정
   const isFirstLoadRef = useRef(true);
@@ -112,8 +180,71 @@ export default function Page() {
   const [selected, setSelected] = useState<InventoryRow | null>(null);
   const [quoteOpen, setQuoteOpen] = useState(false);
 
+  // ✅ 모바일 카드뷰 선택/견적 생성 (PC와 분리)
+  const [mobileSelected, setMobileSelected] = useState<InventoryRow | null>(null);
+  const [quoteOpenMobile, setQuoteOpenMobile] = useState(false);
+
+  // ✅ PC/모바일 공통: 견적/복사 등에 사용할 '현재 선택 행' (PC는 selected, 모바일은 mobileSelected)
+  const selectedForQuote = isMobile ? mobileSelected : selected;
+
+  // 모바일에서는 조회 결과가 생기면 첫 항목을 기본 선택
+  useEffect(() => {
+    if (!isMobile) return;
+    if (!loadedOnce) return;
+    if (rows && rows.length > 0) setMobileSelected((prev) => prev ?? rows[0]);
+    else setMobileSelected(null);
+  }, [isMobile, loadedOnce, rows]);
+
   
+
+  // ✅ 모바일/PC: 견적 모달 내부 스크롤 힌트(↓ 아래로 스크롤)
+  const mobileQuoteBodyRef = useRef<HTMLDivElement | null>(null);
+  const pcQuoteBodyRef = useRef<HTMLDivElement | null>(null);
+  const [showMobileScrollHint, setShowMobileScrollHint] = useState(false);
+  const [showPcScrollHint, setShowPcScrollHint] = useState(false);
+
   const [quoteCopied, setQuoteCopied] = useState(false);
+  // ✅ 모달 열릴 때: 스크롤 가능하면 '↓ 아래로 스크롤' 힌트 잠깐 표시
+  useEffect(() => {
+    // ✅ 스크롤이 실제로 가능한 경우에만 힌트 노출 (스크롤하면 사라짐)
+    if (!quoteOpenMobile) {
+      setShowMobileScrollHint(false);
+      return;
+    }
+    window.requestAnimationFrame(() => {
+      const el = mobileQuoteBodyRef.current;
+      if (!el) return;
+      const scrollable = el.scrollHeight - el.clientHeight > 8;
+      setShowMobileScrollHint(scrollable && el.scrollTop <= 2);
+    });
+  }, [quoteOpenMobile, selectedForQuote?.번호]);
+
+  useEffect(() => {
+    // ✅ PC에서도: 스크롤 가능하면 힌트 노출 (스크롤하면 사라짐)
+    if (!quoteOpen || isMobile) {
+      setShowPcScrollHint(false);
+      return;
+    }
+    window.requestAnimationFrame(() => {
+      const el = pcQuoteBodyRef.current;
+      if (!el) return;
+      const scrollable = el.scrollHeight - el.clientHeight > 8;
+      setShowPcScrollHint(scrollable && el.scrollTop <= 2);
+    });
+  }, [quoteOpen, isMobile, selectedForQuote?.번호]);
+
+  const onMobileQuoteScroll = () => {
+    const el = mobileQuoteBodyRef.current;
+    if (!el) return;
+    if (el.scrollTop > 6) setShowMobileScrollHint(false);
+  };
+
+  const onPcQuoteScroll = () => {
+    const el = pcQuoteBodyRef.current;
+    if (!el) return;
+    if (el.scrollTop > 6) setShowPcScrollHint(false);
+  };
+
 // ---------------------------------------------------------------------------
   // 설정 관리: 검색어(동의어/별명) 사전 (서버 저장)
   // ---------------------------------------------------------------------------
@@ -312,6 +443,9 @@ export default function Page() {
 
   // ✅ 텍스트 복사 알림(3초 노출)
   const [copyToast, setCopyToast] = useState<string>("");
+  const [copyBtnFlash, setCopyBtnFlash] = useState<"idle" | "done" | "fail">("idle");
+  const copyBtnFlashTimerRef = useRef<number | null>(null);
+
   const copyToastTimerRef = useRef<number | null>(null);
 
   const defaultColDef = useMemo<ColDef>(
@@ -361,6 +495,10 @@ export default function Page() {
       if (copyToastTimerRef.current) {
         window.clearTimeout(copyToastTimerRef.current);
         copyToastTimerRef.current = null;
+      }
+      if (copyBtnFlashTimerRef.current) {
+        window.clearTimeout(copyBtnFlashTimerRef.current);
+        copyBtnFlashTimerRef.current = null;
       }
     };
   }, []);
@@ -486,25 +624,27 @@ export default function Page() {
   }
 
   function onQuote() {
-    if (!selected) return;
-    setQuoteOpen(true);
+    const target = selectedForQuote;
+    if (!target) return;
+    if (isMobile) setQuoteOpenMobile(true);
+    else setQuoteOpen(true);
   }
 
   
   // ✅ 그리드의 '판매가능' 표시 로직과 동일하게: 판매가능이 0/비어있으면 즉시출고를 판매대수로 사용
   const saleCount = useMemo(() => {
-    if (!selected) return 0;
-    const sale = Number((selected as any).판매가능 ?? 0);
-    const instant = Number((selected as any).즉시출고 ?? 0);
+    if (!selectedForQuote) return 0;
+    const sale = Number((selectedForQuote as any).판매가능 ?? 0);
+    const instant = Number((selectedForQuote as any).즉시출고 ?? 0);
     return sale > 0 ? sale : instant;
-  }, [selected]);
+  }, [selectedForQuote]);
 
 const quoteText = useMemo(() => {
-    if (!selected) return "";
+    if (!selectedForQuote) return "";
 
-    const reg = selected.구분 ?? "";
-    const no = selected.번호 ?? "";
-    const colors = `${selected.외장 ?? ""}${selected.외장 && selected.내장 ? "/" : ""}${selected.내장 ?? ""}`.trim();
+    const reg = selectedForQuote.구분 ?? "";
+    const no = selectedForQuote.번호 ?? "";
+    const colors = `${selectedForQuote.외장 ?? ""}${selectedForQuote.외장 && selectedForQuote.내장 ? "/" : ""}${selectedForQuote.내장 ?? ""}`.trim();
 
     const gLine =
       guaranteeType === "직접입력"
@@ -521,10 +661,10 @@ const quoteText = useMemo(() => {
     return [
       "",
       `- 구분 번호 : ${reg}${no ? ` ${no}` : ""}`,
-      `- 대표차종 : ${selected.대표차종 ?? ""}`,
-      `- 차종명: ${selected.차종명 ?? ""}`,
-      `- 옵션 : ${selected.옵션 ?? ""}`,
-      `- 차량가 : ${fmtNum(selected.가격)}`,
+      `- 대표차종 : ${selectedForQuote.대표차종 ?? ""}`,
+      `- 차종명: ${selectedForQuote.차종명 ?? ""}`,
+      `- 옵션 : ${selectedForQuote.옵션 ?? ""}`,
+      `- 차량가 : ${fmtNum(selectedForQuote.가격)}`,
       `- 색상 : ${colors}`,
       `- 개인/법인 : ${clientType}`,
       `- 계약기간 : ${term}`,
@@ -538,188 +678,385 @@ const quoteText = useMemo(() => {
       "",
       "견적서 부탁드리겠습니다.",
     ].join("\n");
-  }, [selected, clientType, term, mileage, guaranteeType, guaranteeText, insuranceAge, liability, goodsMode, goodsText, fee, notes]);
+  }, [selectedForQuote, clientType, term, mileage, guaranteeType, guaranteeText, insuranceAge, liability, goodsMode, goodsText, fee, notes]);
 
   
 
   // ✅ 견적 생성 제목 클릭 시, 표시 티 안나게 핵심 항목만 클립보드로 복사
-  const quoteHeadText = useMemo(() => {
-    if (!selected) return "";
 
-    const colors = `${selected.외장 ?? ""}${selected.외장 && selected.내장 ? "/" : ""}${selected.내장 ?? ""}`.trim();
+  // ✅ 견적 대상 선택(PC: 그리드 선택, 모바일: 카드 선택)
+
+  const quoteHeadText = useMemo(() => {
+    if (!selectedForQuote) return "";
+
+    const colors = `${selectedForQuote.외장 ?? ""}${selectedForQuote.외장 && selectedForQuote.내장 ? "/" : ""}${selectedForQuote.내장 ?? ""}`.trim();
 
     return [
-      `- 대표차종 : ${selected.대표차종 ?? ""}`,
-      `- 차종명: ${selected.차종명 ?? ""}`,
-      `- 옵션 : ${selected.옵션 ?? ""}`,
+      `- 대표차종 : ${selectedForQuote.대표차종 ?? ""}`,
+      `- 차종명: ${selectedForQuote.차종명 ?? ""}`,
+      `- 옵션 : ${selectedForQuote.옵션 ?? ""}`,
       `- 색상 : ${colors}`,
-      `- 차량가 : ${fmtNum(selected.가격)}`,
-      `- 즉시출고: ${fmtNum((selected as any).즉시출고)}`,
+      `- 차량가 : ${fmtNum(selectedForQuote.가격)}`,
+      `- 즉시출고: ${fmtNum((selectedForQuote as any).즉시출고)}`,
     ].join("\n");
-  }, [selected]);
+  }, [selectedForQuote]);
 
-  async function copyQuoteHeadSilent() {
+  
+  async function copyToClipboard(text: string): Promise<boolean> {
+    if (!text) return false;
+
+    // 1) Modern API (works on HTTPS + user gesture)
+    try {
+      if (typeof navigator !== "undefined" && navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(text);
+        return true;
+      }
+    } catch {}
+
+    // 2) Fallback (better compatibility on mobile Safari etc.)
+    try {
+      const ta = document.createElement("textarea");
+      ta.value = text;
+      ta.setAttribute("readonly", "");
+      ta.style.position = "fixed";
+      ta.style.top = "-1000px";
+      ta.style.left = "-1000px";
+      ta.style.opacity = "0";
+      document.body.appendChild(ta);
+      ta.focus();
+      ta.select();
+      ta.setSelectionRange(0, ta.value.length);
+      const ok = document.execCommand("copy");
+      document.body.removeChild(ta);
+      return ok;
+    } catch {
+      return false;
+    }
+  }
+
+async function copyQuoteHeadSilent() {
     try {
       if (!quoteHeadText) return;
-      await navigator.clipboard.writeText(quoteHeadText);
+      const ok = await copyToClipboard(quoteHeadText);
+      if (!ok) return;
       setQuoteCopied(true);
       window.setTimeout(() => setQuoteCopied(false), 2000);
-} catch {
+    } catch {
       // 실패해도 UI 티 안나게 조용히 무시
     }
   }
 
 async function copyQuote() {
-    // 기존 alert 대신 버튼 옆에 3초 메시지
+    // ✅ 모바일 포함: 클립보드 복사 호환 + 버튼 3초 강조
     try {
-      await navigator.clipboard.writeText(quoteText);
+      const ok = await copyToClipboard(quoteText);
 
-      setCopyToast("복사 완료");
-      if (copyToastTimerRef.current) window.clearTimeout(copyToastTimerRef.current);
-      copyToastTimerRef.current = window.setTimeout(() => {
+      if (copyBtnFlashTimerRef.current) {
+        window.clearTimeout(copyBtnFlashTimerRef.current);
+        copyBtnFlashTimerRef.current = null;
+      }
+
+      if (ok) {
+        setCopyBtnFlash("done");
         setCopyToast("");
-        copyToastTimerRef.current = null;
-      }, 3000);
-    } catch {
+        copyBtnFlashTimerRef.current = window.setTimeout(() => {
+          setCopyBtnFlash("idle");
+          copyBtnFlashTimerRef.current = null;
+        }, 3000);
+        return;
+      }
+
+      // 실패
+      setCopyBtnFlash("fail");
       setCopyToast("복사 실패");
       if (copyToastTimerRef.current) window.clearTimeout(copyToastTimerRef.current);
       copyToastTimerRef.current = window.setTimeout(() => {
         setCopyToast("");
         copyToastTimerRef.current = null;
+        setCopyBtnFlash("idle");
+      }, 3000);
+    } catch {
+      setCopyBtnFlash("fail");
+      setCopyToast("복사 실패");
+      if (copyToastTimerRef.current) window.clearTimeout(copyToastTimerRef.current);
+      copyToastTimerRef.current = window.setTimeout(() => {
+        setCopyToast("");
+        copyToastTimerRef.current = null;
+        setCopyBtnFlash("idle");
       }, 3000);
     }
   }
 
   return (
     <div className="page">
-      {/* ✅ 상단 헤더: 로고 + 검색/버튼(기존 기능 유지) */}
-      <header
-        className="topbar"
-        style={{
-          position: "sticky",
-          top: 0,
-          zIndex: 50,
-          background: "rgba(255,255,255,0.92)",
-          backdropFilter: "blur(10px)",
-          borderBottom: "1px solid #e5e7eb",
-          padding: "10px 14px",
-          display: "flex",
-          alignItems: "center",
-          gap: 12,
-          flexWrap: "wrap",
-        }}
-      >
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 10,
-            minWidth: 240,
-            flex: "0 0 auto",
-          }}
-        >
-          <div style={{ position: "relative", width: 230, height: 36 }}>
-            {/*
-              ✅ 사용법
-              - /public/banner.png 로 저장하면 그대로 표시됩니다.
-              - 파일명이 다르면 src만 바꿔주세요.
-            */}
-            <Image
-              src="/banner.png"
-              alt="롯데렌터카 Bizcar × AUTO.ST."
-              fill
-              priority
-              sizes="230px"
-              style={{ objectFit: "contain" }}
-            />
-          </div>
+      {isMobile ? (
+        <>
+
+      {/* ✅ 모바일: 좌우 스와이프 카드뷰 */}
+      <div className="topbar" style={{ gap: 8, flexWrap: "wrap" }}>
+        <div style={{ width: "100%", display: "flex", alignItems: "center", gap: 10 }}>
+          <Image
+            src="/banner.png"
+            alt="Bizcar x Auto.ST"
+            width={240}
+            height={36}
+            priority
+            style={{ height: 34, width: "auto", objectFit: "contain" }}
+          />
         </div>
 
         <div
           style={{
+            width: "100%",
             display: "flex",
-            alignItems: "center",
-            gap: 10,
-            flex: "1 1 auto",
+            gap: 8,
             flexWrap: "wrap",
+            alignItems: "center",
+            padding: "6px 8px",
+            borderRadius: 999,
+            border: "1px solid #e5e7eb",
+            background: "#f8fafc",
           }}
         >
-          <div
-            className="chk"
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 12,
-              padding: "6px 10px",
-              border: "1px solid #e5e7eb",
-              borderRadius: 999,
-              background: "rgba(249,250,251,0.85)",
-            }}
-          >
-            <label style={{ display: "flex", alignItems: "center", gap: 6, fontWeight: 700 }}>
-              <input
-                type="checkbox"
-                checked={qs.strategy}
-                onChange={(e) => setQs((s) => ({ ...s, strategy: e.target.checked }))}
-              />
-              전략구매
-            </label>
-            <label style={{ display: "flex", alignItems: "center", gap: 6, fontWeight: 700 }}>
-              <input
-                type="checkbox"
-                checked={qs.general}
-                onChange={(e) => setQs((s) => ({ ...s, general: e.target.checked }))}
-              />
-              일반구매(현대/기아)
-            </label>
-          </div>
+          <PillCheckbox checked={qs.strategy} onChange={(v) => setQs((s) => ({ ...s, strategy: v }))}>
+            전략구매
+          </PillCheckbox>
+          <PillCheckbox checked={qs.general} onChange={(v) => setQs((s) => ({ ...s, general: v }))}>
+            일반구매(현대/기아)
+          </PillCheckbox>
+        </div>
 
+        <div style={{ width: "100%", display: "flex", gap: 8 }}>
           <input
             className="search"
+            style={{ flex: 1, minWidth: 0 }}
             value={qs.q}
             onChange={(e) => setQs((s) => ({ ...s, q: e.target.value }))}
             placeholder="차종, 옵션, 색상 등..."
             onKeyDown={(e) => {
               if (e.key === "Enter") onSearch();
             }}
-            style={{
-              flex: "1 1 360px",
-              minWidth: 240,
-              height: 40,
-              borderRadius: 12,
-              border: "1px solid #e5e7eb",
-              padding: "0 12px",
-              outline: "none",
-              background: "white",
-            }}
           />
-
-          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-            <button className="btn primary" onClick={onSearch} disabled={loading}>
-              {loading ? "조회중..." : "데이터 조회"}
-            </button>
-
-            <button className="btn accent" onClick={onQuote} disabled={!selected}>
-              견적 생성
-            </button>
-
-            <button
-              className="btn"
-              onClick={() => {
-                if (adminAuthed) {
-                  setSettingsOpen(true);
-                } else {
-                  setAdminPwErr("");
-                  setAdminPw("");
-                  setAdminPwOpen(true);
-                }
-              }}
-            >
-              설정 관리
-            </button>
-          </div>
+          <button className="btn primary" onClick={onSearch} disabled={loading} style={{ whiteSpace: "nowrap" }}>
+            {loading ? "조회중..." : "조회"}
+          </button>
         </div>
-      </header>
+
+      </div>
+
+      <div className="sectionTitle">
+        <div className="left">
+          <span>▸ 재고목록</span>
+          <span className="badge">{loadedOnce ? `조회결과 ${count.toLocaleString()}건` : "조회 전"}</span>
+        </div>
+        <div style={{ color: "#6b7280", fontSize: 12 }}>
+          {!qs.strategy && !qs.general ? "조회 대상을 선택하세요." : "좌우로 넘겨서 재고를 확인하세요."}
+        </div>
+      </div>
+
+      <div style={{ padding: "6px 10px 8px" }}>
+        {loading && (
+          <div style={{ padding: 12, color: "#6b7280", fontWeight: 700 }}>조회중…</div>
+        )}
+
+        {!loading && loadedOnce && rows.length === 0 && (
+          <div style={{ padding: 12, color: "#6b7280", fontWeight: 700 }}>조회된 내용이 없습니다.</div>
+        )}
+
+        {!loading && rows.length > 0 && (
+          <div
+            style={{
+              display: "flex",
+              gap: 12,
+              overflowX: "auto",
+              paddingBottom: 6,
+              scrollSnapType: "x mandatory",
+              WebkitOverflowScrolling: "touch",
+            }}
+          >
+            {rows.map((r, i) => {
+              const isSel = mobileSelected?.번호 === r.번호 && mobileSelected?.구분 === r.구분;
+              const colors = `${r.외장 ?? ""}${r.외장 && r.내장 ? "/" : ""}${r.내장 ?? ""}`.trim();
+              const price = fmtNum(r.가격);
+
+              return (
+                <div
+                  key={`${r.구분 ?? ""}-${r.번호 ?? ""}-${i}`}
+                  onClick={() => setMobileSelected(r)}
+                  style={{
+                    scrollSnapAlign: "center",
+                    flex: "0 0 86%",
+                    borderRadius: 16,
+                    border: isSel ? "2px solid #10b981" : "1px solid #e5e7eb",
+                    background: "#fff",
+                    padding: 10,
+                    boxShadow: "0 1px 8px rgba(0,0,0,0.05)",
+                    cursor: "pointer",
+                    display: "flex",
+                    flexDirection: "column",
+                    height: "calc(100vh - 230px)",
+                    maxHeight: "calc(100vh - 230px)",
+                  }}
+                >
+                  <div
+                    style={{
+                      fontWeight: 900,
+                      fontSize: 18,
+                      lineHeight: 1.2,
+                      display: "flex",
+                      alignItems: "baseline",
+                      gap: 8,
+                      flexWrap: "wrap",
+                    }}
+                  >
+                    <span style={{ color: "#10b981" }}>{r.구분 ?? "-"}</span>
+                    <span style={{ color: "#9ca3af" }}>·</span>
+                    <span>{r.대표차종 ?? r.차종명 ?? "차량"}</span>
+                  </div>
+
+                  
+                  <div style={{ marginTop: 6, flex: 1, overflowY: "auto", paddingRight: 4, WebkitOverflowScrolling: "touch" }}>
+                    <div
+                      style={{
+                        display: "grid",
+                        gridTemplateColumns: "78px 1fr",
+                        gap: "6px 10px",
+                        fontSize: 12,
+                        lineHeight: 1.2,
+                        color: "#111827",
+                      }}
+                    >
+<div style={{ color: "#6b7280", fontWeight: 800 }}>프로모션</div>
+                      <div style={{ fontWeight: 700 }}>{(r as any).프로모션 ?? "-"}</div>
+<div style={{ color: "#6b7280", fontWeight: 800 }}>차종명</div>
+                      <div style={{ fontWeight: 700 }}>{r.차종명 ?? "-"}</div>
+
+                      <div style={{ color: "#6b7280", fontWeight: 800 }}>옵션</div>
+                      <div style={{ fontWeight: 700, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
+                        {r.옵션 ?? "-"}
+                      </div>
+
+                      <div style={{ color: "#6b7280", fontWeight: 800 }}>차량연식</div>
+                      <div style={{ fontWeight: 700 }}>{(r as any).차량연식 ?? "-"}</div>
+
+                      <div style={{ color: "#6b7280", fontWeight: 800 }}>외장/내장</div>
+                      <div style={{ fontWeight: 700 }}>{colors || "-"}</div>
+
+                      <div style={{ color: "#6b7280", fontWeight: 800 }}>가격</div>
+                      <div style={{ fontWeight: 900 }}>{price}</div>
+
+                      <div style={{ color: "#6b7280", fontWeight: 800 }}>보조금</div>
+                      <div style={{ fontWeight: 700 }}>{fmtNum((r as any).보조금)}</div>
+
+                      <div style={{ color: "#6b7280", fontWeight: 800 }}>판매가능</div>
+                      <div style={{ fontWeight: 700 }}>{fmtNum((r as any).판매가능)}</div>
+
+                      <div style={{ color: "#6b7280", fontWeight: 800 }}>즉시출고</div>
+                      <div style={{ fontWeight: 700 }}>{fmtNum((r as any).즉시출고)}</div>
+
+                      <div style={{ color: "#6b7280", fontWeight: 800 }}>생산예시일</div>
+                      <div style={{ fontWeight: 700 }}>{(r as any).생산예시일 ?? "-"}</div>
+
+                      <div style={{ color: "#6b7280", fontWeight: 800 }}>공지</div>
+                      <div style={{ fontWeight: 700, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
+                        {(r as any).공지 ?? "-"}
+                      </div>
+                    </div>
+                  </div>
+
+      <div style={{ marginTop: 6, position: "sticky", bottom: 0, background: "#fff", paddingTop: 6, display: "flex", gap: 8, alignItems: "center" }}>
+                    <button
+                      className="btn accent"
+                      style={{ flex: 1, padding: "10px 12px", fontSize: 14, fontWeight: 900 }}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setMobileSelected(r);
+                        setQuoteOpenMobile(true);
+                      }}
+                    >
+                      견적 생성
+                    </button>
+                    <div style={{ minWidth: 60, textAlign: "right", fontSize: 12, fontWeight: 900, color: "#6b7280", paddingRight: 2 }}>
+                      {`${i + 1}/${count || rows.length}`}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {copyToast && (
+          <div style={{ marginTop: 6, color: "#10b981", fontWeight: 800, paddingLeft: 2 }}>
+            {copyToast}
+          </div>
+        )}
+      </div>
+        </>
+      ) : (
+        <>
+      <div className="topbar" style={{ alignItems: "center" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <Image
+            src="/banner.png"
+            alt="Bizcar x Auto.ST"
+            width={240}
+            height={36}
+            priority
+            style={{ height: 34, width: "auto", objectFit: "contain" }}
+          />
+        </div>
+
+        <div
+          style={{
+            display: "flex",
+            gap: 8,
+            flexWrap: "wrap",
+            alignItems: "center",
+            padding: "6px 8px",
+            borderRadius: 999,
+            border: "1px solid #e5e7eb",
+            background: "#f8fafc",
+          }}
+        >
+          <PillCheckbox checked={qs.strategy} onChange={(v) => setQs((s) => ({ ...s, strategy: v }))}>
+            전략구매
+          </PillCheckbox>
+          <PillCheckbox checked={qs.general} onChange={(v) => setQs((s) => ({ ...s, general: v }))}>
+            일반구매(현대/기아)
+          </PillCheckbox>
+        </div>
+
+        <input
+          className="search"
+          value={qs.q}
+          onChange={(e) => setQs((s) => ({ ...s, q: e.target.value }))}
+          placeholder="차종, 옵션, 색상 등..."
+          onKeyDown={(e) => {
+            if (e.key === "Enter") onSearch();
+          }}
+        />
+
+        <button className="btn primary" onClick={onSearch} disabled={loading}>
+          {loading ? "조회중..." : "데이터 조회"}
+        </button>
+
+        <button className="btn accent" onClick={onQuote} disabled={!selected}>
+          견적 생성
+        </button>
+
+        <button className="btn" onClick={() => {
+          if (adminAuthed) {
+            setSettingsOpen(true);
+          } else {
+            setAdminPwErr("");
+            setAdminPw("");
+            setAdminPwOpen(true);
+          }
+        }}>
+          설정 관리
+        </button>
+      </div>
 
       <div className="sectionTitle">
         <div className="left">
@@ -781,7 +1118,209 @@ async function copyQuote() {
         </div>
       </div>
 
-      {quoteOpen && selected && (
+              </>
+      )}
+
+
+      {/* ✅ 모바일 견적 생성: 바텀시트 */}
+      {quoteOpenMobile && selectedForQuote && (
+        <div className="backdrop" onClick={() => setQuoteOpenMobile(false)} style={{ alignItems: "flex-end" }}>
+          <div
+            className="dialog"
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              width: "100%",
+              maxWidth: "100%",
+              maxHeight: "90vh",
+              borderTopLeftRadius: 18,
+              borderTopRightRadius: 18,
+              margin: 0,
+              overflow: "hidden",
+            }}
+          >
+            <div className="dialogHeader" style={{ padding: "12px 14px" }}>
+              <div>견적 생성</div>
+              <button className="btn" onClick={() => setQuoteOpenMobile(false)}>
+                닫기
+              </button>
+            </div>
+
+            <div className="dialogBody" ref={mobileQuoteBodyRef} onScroll={onMobileQuoteScroll} style={{ padding: 10, overflowY: "auto", maxHeight: "calc(90vh - 120px)", position: "relative" }}>
+              <div style={{ fontWeight: 800, marginBottom: 10 }}>
+                {(selectedForQuote.차종명 ?? selectedForQuote.대표차종 ?? "")} / {fmtNum(selectedForQuote.가격)}
+              </div>
+              
+
+              <div style={{ display: "grid", gap: 10 }}>
+                <label style={{ display: "grid", gap: 6 }}>
+                  <div style={{ fontSize: 12, fontWeight: 800, color: "#6b7280" }}>개인/법인</div>
+                  <select className="search" value={clientType} onChange={(e) => setClientType(e.target.value as ClientType)}>
+                                        <option value="개인">개인</option>
+                    <option value="개인사업자">개인사업자</option>
+                    <option value="법인">법인</option>
+                  </select>
+                </label>
+
+                <label style={{ display: "grid", gap: 6 }}>
+                  <div style={{ fontSize: 12, fontWeight: 800, color: "#6b7280" }}>계약기간</div>
+                  <select className="search" value={term} onChange={(e) => setTerm(e.target.value as TermType)}>
+                                        <option value="24개월">24개월</option>
+                    <option value="36개월">36개월</option>
+                    <option value="48개월">48개월</option>
+                    <option value="60개월">60개월</option>
+                  </select>
+                </label>
+
+                <label style={{ display: "grid", gap: 6 }}>
+                  <div style={{ fontSize: 12, fontWeight: 800, color: "#6b7280" }}>주행거리</div>
+                  <select className="search" value={mileage} onChange={(e) => setMileage(e.target.value)}>
+                    {(clientType === "법인" ? mileageOptionsCorporate : mileageOptionsDefault).map((x) => (
+                      <option key={x} value={x}>{x}</option>
+                    ))}
+                  </select>
+                </label>
+
+                <label style={{ display: "grid", gap: 6 }}>
+                  <div style={{ fontSize: 12, fontWeight: 800, color: "#6b7280" }}>보증/선납</div>
+                                    <div style={{ display: "grid", gap: 8 }}>
+                    <select
+                      className="search"
+                      value={guaranteeType}
+                      onChange={(e) => setGuaranteeType(e.target.value as GuaranteeType)}
+                    >
+                      <option value="없음">없음</option>
+                      <option value="직접입력">직접입력</option>
+                    </select>
+                    <input
+                      className="search"
+                      value={guaranteeText}
+                      onChange={(e) => setGuaranteeText(e.target.value)}
+                      placeholder={guaranteeType === "직접입력" ? "예: 보증금 10%" : ""}
+                      disabled={guaranteeType !== "직접입력"}
+                    />
+                  </div>
+</label>
+
+                <label style={{ display: "grid", gap: 6 }}>
+                  <div style={{ fontSize: 12, fontWeight: 800, color: "#6b7280" }}>보험연령</div>
+                  <select className="search" value={insuranceAge} onChange={(e) => setInsuranceAge(e.target.value as InsuranceAgeType)}>
+                                        <option value="만 21세 이상">만 21세 이상</option>
+                    <option value="만 24세 이상">만 24세 이상</option>
+                    <option value="만 26세 이상">만 26세 이상</option>
+                    <option value="만 30세 이상">만 30세 이상</option>
+                    <option value="만 35세 이상">만 35세 이상</option>
+                  </select>
+                </label>
+
+                <label style={{ display: "grid", gap: 6 }}>
+                  <div style={{ fontSize: 12, fontWeight: 800, color: "#6b7280" }}>용품</div>
+                                    <div style={{ display: "grid", gap: 8 }}>
+                    <select className="search" value={goodsMode} onChange={(e) => setGoodsMode(e.target.value as GoodsMode)}>
+                      <option value="블박+선팅 포함">블박+선팅 포함</option>
+                      <option value="블박만 포함">블박만 포함</option>
+                      <option value="선팅만 포함">선팅만 포함</option>
+                      <option value="모두 미포함">모두 미포함</option>
+                      <option value="직접입력">직접입력</option>
+                    </select>
+                    <input
+                      className="search"
+                      value={goodsText}
+                      onChange={(e) => setGoodsText(e.target.value)}
+                      placeholder={goodsMode === "직접입력" ? "예: 기본 용품" : ""}
+                      disabled={goodsMode !== "직접입력"}
+                    />
+                  </div>
+</label>
+
+                <label style={{ display: "grid", gap: 6 }}>
+                  <div style={{ fontSize: 12, fontWeight: 800, color: "#6b7280" }}>수수료</div>
+                  <input className="search" value={fee} onChange={(e) => setFee(e.target.value)} placeholder="예: 5피" />
+                </label>
+
+                <label style={{ display: "grid", gap: 6 }}>
+                  <div style={{ fontSize: 12, fontWeight: 800, color: "#6b7280" }}>대물보험</div>
+                  <select className="search" value={liability} onChange={(e) => setLiability(e.target.value as LiabilityType)}>
+                                        <option value="1억">1억</option>
+                    <option value="2억">2억</option>
+                    <option value="3억">3억</option>
+                    <option value="5억">5억</option>
+                    <option value="10억">10억</option>
+                  </select>
+                </label>
+
+                <label style={{ display: "grid", gap: 6 }}>
+                  <div style={{ fontSize: 12, fontWeight: 800, color: "#6b7280" }}>기타사항</div>
+                  <textarea
+                    className="search"
+                    style={{ minHeight: 80, whiteSpace: "pre-wrap" }}
+                    value={notes}
+                    onChange={(e) => setNotes(e.target.value)}
+                    placeholder="필요한 내용을 적어주세요"
+                  />
+                </label>
+
+                                <div style={{ marginTop: 10 }}>
+                  <div style={{ color: "#ef4444", fontSize: 12, lineHeight: 1.35 }}>
+                    <div>※ 전략구매 즉시출고 물량은 일반적으로 1~2주 내로 고객에게 인도</div>
+                    <div>※ 일반구매 재고 물량은 일반적으로 2~3주대로 고객에게 인도</div>
+                    <div>※ 즉시출고 현황은 실시간은 아닌 점 참고 바랍니다</div>
+                  </div>
+
+                  <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 14 }}>
+                    <button
+                      className="btn accent"
+                      style={{
+                        padding: "10px 14px",
+                        whiteSpace: "nowrap",
+                        background: copyBtnFlash === "done" ? "#ef4444" : undefined,
+                        borderColor: copyBtnFlash === "done" ? "#ef4444" : undefined,
+                      }}
+                      onClick={copyQuote}
+                    >
+                      {copyBtnFlash === "done" ? "복사완료" : "텍스트 복사"}
+                    </button>
+                    <div style={{ fontSize: 12, color: "#6b7280", fontWeight: 700 }}>
+                      복사 후 카카오톡/메일에 붙여넣으면 됩니다.
+                    </div>
+                  </div>
+
+                  <div
+                    style={{
+                      marginTop: 6,
+                      borderRadius: 16,
+                      background: "linear-gradient(180deg, #0b1220, #0a1020)",
+                      padding: 16,
+                      color: "#e5e7eb",
+                      boxShadow: "0 10px 24px rgba(0,0,0,0.12)",
+                      overflow: "hidden",
+                    }}
+                  >
+                    <pre style={{ margin: 0, whiteSpace: "pre-wrap", wordBreak: "break-word", fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace", fontSize: 12, lineHeight: 1.5 }}>
+{quoteText}
+                    </pre>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+                        <div style={{ display: "flex", gap: 10, padding: 10, borderTop: "1px solid #e5e7eb" }}>
+              <button className="btn" style={{ flex: 1, padding: "12px 14px" }} onClick={() => setQuoteOpenMobile(false)}>
+                닫기
+              </button>
+            
+              {showMobileScrollHint && (
+                <div style={{ position: "sticky", bottom: 10, display: "flex", justifyContent: "center", pointerEvents: "none", marginTop: 10, zIndex: 5 }}>
+                  <div style={{ background: "rgba(0,0,0,0.72)", color: "#fff", fontWeight: 900, fontSize: 12, padding: "7px 12px", borderRadius: 999, letterSpacing: 0.2 }}>
+                    ↓ 아래로 스크롤
+                  </div>
+                </div>
+              )}
+</div>
+          </div>
+        </div>
+      )}
+
+{quoteOpen && !isMobile && selectedForQuote && (
         <div className="backdrop" onClick={() => setQuoteOpen(false)}>
           <div className="dialog" onClick={(e) => e.stopPropagation()}>
             <div className="dialogHeader">
@@ -790,8 +1329,9 @@ async function copyQuote() {
                 닫기
               </button>
             </div>
-            <div className="dialogBody">
+            <div className="dialogBody" ref={pcQuoteBodyRef} onScroll={onPcQuoteScroll} style={{ position: "relative" }}>
               <div className="quoteLayout">
+              
                 {/* 좌측: 차량 정보 */}
                 <div className="quoteInfo">
                   <div className="quoteTitle" style={{ cursor: "pointer", userSelect: "none" }} onDoubleClick={copyQuoteHeadSilent}>
@@ -804,25 +1344,25 @@ async function copyQuote() {
                   </div>
                   <div className="kv quoteKv">
                     <div>구분</div>
-                    <div>{selected.구분}</div>
+                    <div>{selectedForQuote.구분}</div>
                     <div>번호</div>
-                    <div>{selected.번호 ?? ""}</div>
+                    <div>{selectedForQuote.번호 ?? ""}</div>
                     <div>프로모션</div>
                     <div>{selected.프로모션 ?? ""}</div>
                     <div>대표차종</div>
-                    <div>{selected.대표차종}</div>
+                    <div>{selectedForQuote.대표차종}</div>
                     <div>차종명</div>
-                    <div>{selected.차종명}</div>
+                    <div>{selectedForQuote.차종명}</div>
                     <div>옵션</div>
-                    <div>{selected.옵션}</div>
+                    <div>{selectedForQuote.옵션}</div>
                     <div>차량연식</div>
                     <div>{selected.차량연식 ?? ""}</div>
                     <div>외장/내장</div>
                     <div>
-                      {selected.외장} / {selected.내장}
+                      {selectedForQuote.외장} / {selectedForQuote.내장}
                     </div>
                     <div>가격</div>
-                    <div>{fmtNum(selected.가격)}</div>
+                    <div>{fmtNum(selectedForQuote.가격)}</div>
                     <div>보조금</div>
                     <div>{fmtNum(selected.보조금)}</div>
                     <div>판매가능</div>
@@ -934,8 +1474,15 @@ async function copyQuote() {
               </div>
 
               <div className="smallRow" style={{ marginTop: 14 }}>
-                <button className="btn accent" onClick={copyQuote}>
-                  텍스트 복사
+                <button
+                  className="btn accent"
+                  style={{
+                    background: copyBtnFlash === "done" ? "#ef4444" : undefined,
+                    borderColor: copyBtnFlash === "done" ? "#ef4444" : undefined,
+                  }}
+                  onClick={copyQuote}
+                >
+                  {copyBtnFlash === "done" ? "복사완료" : "텍스트 복사"}
                 </button>
                 <div className={`copyToast ${copyToast ? "show" : ""}`} aria-live="polite">
                   {copyToast}
@@ -946,7 +1493,15 @@ async function copyQuote() {
               <div className="pre">{quoteText}</div>
             </div>
           </div>
-        </div>
+        
+              {showPcScrollHint && (
+                <div style={{ position: "sticky", bottom: 10, display: "flex", justifyContent: "center", pointerEvents: "none", marginTop: 10, zIndex: 5 }}>
+                  <div style={{ background: "rgba(0,0,0,0.72)", color: "#fff", fontWeight: 900, fontSize: 12, padding: "7px 12px", borderRadius: 999, letterSpacing: 0.2 }}>
+                    ↓ 아래로 스크롤
+                  </div>
+                </div>
+              )}
+</div>
       )}
 
 
@@ -960,7 +1515,7 @@ async function copyQuote() {
               </button>
             </div>
             <div className="dialogBody">
-              <div style={{ fontSize: 13, color: "#374151", fontWeight: 700, marginBottom: 8 }}>
+              <div style={{ fontSize: 12, color: "#374151", fontWeight: 700, marginBottom: 8 }}>
                 설정관리 비밀번호를 입력하세요.
               </div>
               <input
@@ -974,7 +1529,7 @@ async function copyQuote() {
                 }}
               />
               {adminPwErr && (
-                <div style={{ marginTop: 8, color: "#ef4444", fontSize: 13, fontWeight: 800 }}>
+                <div style={{ marginTop: 8, color: "#ef4444", fontSize: 12, fontWeight: 800 }}>
                   {adminPwErr}
                 </div>
               )}
