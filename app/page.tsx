@@ -145,6 +145,17 @@ export default function Page() {
   const ADMIN_SETTINGS_PASSWORD = "21482148";
   const ADMIN_FLAG_KEY = "inv_admin_authed_v1";
   const [qs, setQs] = useState<QueryState>({ strategy: true, general: false, q: "" });
+  // ✅ 검색어 입력은 uncontrolled로 처리해서(상태 업데이트 X) 입력 중 렌더/그리드 작업이 발생하지 않게 함
+  //    - 검색은 'Enter' 또는 '데이터 조회' 버튼을 눌렀을 때만 실행
+  const qRef = useRef<string>("");
+  const searchInputRef = useRef<HTMLInputElement | null>(null);
+
+  // qs.q(확정 검색어)가 바뀌는 경우에만 입력창에 반영
+  useEffect(() => {
+    const v = (qs.q ?? "");
+    qRef.current = v;
+    if (searchInputRef.current) searchInputRef.current.value = v;
+  }, [qs.q]);
 
   // ✅ 모바일 전용 UI(카드/스와이프) 적용 여부
   const [isMobile, setIsMobile] = useState(false);
@@ -582,27 +593,36 @@ export default function Page() {
   }
 
   async function onSearch() {
-    if (!qs.strategy && !qs.general) {
+    // ✅ 입력 중에는 어떤 검색도 하지 않고, Enter/조회에서만 실행
+    const q = (qRef.current ?? "").trim();
+    const queryState: QueryState = { ...qs, q };
+
+    // qs는 "확정된 검색 조건"으로만 유지 (입력 중 리렌더 방지)
+    setQs(queryState);
+
+    if (!queryState.strategy && !queryState.general) {
       setLoadedOnce(true);
       setRows([]);
       setCount(0);
       setSelected(null);
       gridApiRef.current?.showNoRowsOverlay();
-      saveQueryState(qs);
+      saveQueryState(queryState);
       return;
     }
 
     setLoading(true);
     setLoadedOnce(true);
     setSelected(null);
-    saveQueryState(qs);
+    saveQueryState(queryState);
 
     try {
       const cats: string[] = [];
-      if (qs.strategy) cats.push("strategy");
-      if (qs.general) cats.push("general");
+      if (queryState.strategy) cats.push("strategy");
+      if (queryState.general) cats.push("general");
 
-      const url = `/api/inventory?category=${encodeURIComponent(cats.join(","))}&q=${encodeURIComponent(qs.q ?? "")}`;
+      const url = `/api/inventory?category=${encodeURIComponent(
+        cats.join(",")
+      )}&q=${encodeURIComponent(queryState.q ?? "")}`;
       const res = await fetch(url, { cache: "no-store" });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
@@ -830,8 +850,9 @@ async function copyQuote() {
           <input
             className="search"
             style={{ flex: 1, minWidth: 0 }}
-            value={qs.q}
-            onChange={(e) => setQs((s) => ({ ...s, q: e.target.value }))}
+            ref={searchInputRef}
+            defaultValue={qs.q ?? ""}
+            onChange={(e) => { qRef.current = e.target.value; }}
             placeholder="차종, 옵션, 색상 등..."
             onKeyDown={(e) => {
               if (e.key === "Enter") onSearch();
@@ -1029,8 +1050,9 @@ async function copyQuote() {
 
         <input
           className="search"
-          value={qs.q}
-          onChange={(e) => setQs((s) => ({ ...s, q: e.target.value }))}
+          ref={searchInputRef}
+          defaultValue={qs.q ?? ""}
+          onChange={(e) => { qRef.current = e.target.value; }}
           placeholder="차종, 옵션, 색상 등..."
           onKeyDown={(e) => {
             if (e.key === "Enter") onSearch();
