@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import { AgGridReact } from "ag-grid-react";
 import type { GridApi, GridReadyEvent, ColDef } from "ag-grid-community";
@@ -26,6 +26,115 @@ const mileageOptionsCorporate = [
   "연 1만KM", "연 1.5만KM", "연 2만KM", "연 2.5만KM", "연 3만KM", 
   "반납형 무제한"
 ];
+
+
+type SearchControlsProps = {
+  applied: QueryState;
+  loading: boolean;
+  canQuote: boolean;
+  onApplyAndSearch: (draft: QueryState) => void;
+  onQuote: () => void;
+  mobile?: boolean;
+};
+
+const SearchControls = React.memo(function SearchControls({
+  applied,
+  loading,
+  canQuote,
+  onApplyAndSearch,
+  onQuote,
+  mobile,
+}: SearchControlsProps) {
+  const [draft, setDraft] = useState<QueryState>(applied);
+
+  useEffect(() => {
+    // applied 값이 바뀌면 draft도 동기화
+    setDraft(applied);
+  }, [applied.strategy, applied.general, applied.q]);
+
+  return (
+    <>
+      <div
+        style={{
+          width: mobile ? "100%" : undefined,
+          display: "flex",
+          gap: 8,
+          flexWrap: "wrap",
+          alignItems: "center",
+          padding: "6px 8px",
+          borderRadius: 999,
+          border: "1px solid #e5e7eb",
+          background: "#f8fafc",
+        }}
+      >
+        <PillCheckbox checked={draft.strategy} onChange={(v) => setDraft((s) => ({ ...s, strategy: v }))}>
+          전략구매
+        </PillCheckbox>
+        <PillCheckbox checked={draft.general} onChange={(v) => setDraft((s) => ({ ...s, general: v }))}>
+          일반구매(현대/기아)
+        </PillCheckbox>
+      </div>
+
+      {mobile ? (
+        <div style={{ width: "100%", display: "flex", gap: 8 }}>
+          <input
+            className="search"
+            style={{ flex: 1, minWidth: 0 }}
+            value={draft.q}
+            onChange={(e) => setDraft((s) => ({ ...s, q: e.target.value }))}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !(e.nativeEvent as any).isComposing) {
+                e.preventDefault();
+                onApplyAndSearch(draft);
+              }
+            }}
+            placeholder="차종, 옵션, 색상 등..."
+          />
+          <button
+            className="btn primary"
+            onClick={() => onApplyAndSearch(draft)}
+            disabled={loading}
+            style={{ whiteSpace: "nowrap" }}
+          >
+            {loading ? "조회중..." : "조회"}
+          </button>
+          <button
+            className="btn accent"
+            onClick={onQuote}
+            disabled={!canQuote}
+            style={{ whiteSpace: "nowrap" }}
+          >
+            견적 생성
+          </button>
+        </div>
+      ) : (
+        <>
+          <input
+            className="search"
+            value={draft.q}
+            onChange={(e) => setDraft((s) => ({ ...s, q: e.target.value }))}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !(e.nativeEvent as any).isComposing) {
+                e.preventDefault();
+                onApplyAndSearch(draft);
+              }
+            }}
+            placeholder="차종, 옵션, 색상 등..."
+          />
+
+          <button className="btn primary" onClick={() => onApplyAndSearch(draft)} disabled={loading}>
+            {loading ? "조회중..." : "데이터 조회"}
+          </button>
+
+          <button className="btn accent" onClick={onQuote} disabled={!canQuote}>
+            견적 생성
+          </button>
+        </>
+      )}
+    </>
+  );
+});
+
 
 function loadQueryState(): QueryState {
   if (typeof window === "undefined") return { strategy: true, general: false, q: "" };
@@ -144,21 +253,13 @@ function PillCheckbox({
 export default function Page() {
   const ADMIN_SETTINGS_PASSWORD = "21482148";
   const ADMIN_FLAG_KEY = "inv_admin_authed_v1";
-  const [qs, setQs] = useState<QueryState>({ strategy: true, general: false, q: "" });
-  // ✅ 검색어 입력은 uncontrolled로 처리해서(상태 업데이트 X) 입력 중 렌더/그리드 작업이 발생하지 않게 함
-  //    - 검색은 'Enter' 또는 '데이터 조회' 버튼을 눌렀을 때만 실행
-  const qRef = useRef<string>("");
-  const searchInputRef = useRef<HTMLInputElement | null>(null);
-
-  // qs.q(확정 검색어)가 바뀌는 경우에만 입력창에 반영
-  useEffect(() => {
-    const v = (qs.q ?? "");
-    qRef.current = v;
-    if (searchInputRef.current) searchInputRef.current.value = v;
-  }, [qs.q]);
+  const [appliedQs, setAppliedQs] = useState<QueryState>(loadQueryState());
 
   // ✅ 모바일 전용 UI(카드/스와이프) 적용 여부
   const [isMobile, setIsMobile] = useState(false);
+  // 📏 모바일 카드 높이 고정 (스크롤/주소창 변화에도 테두리 변형 방지)
+  const MOBILE_CARD_HEIGHT = "calc(100svh - 280px)";
+
   useEffect(() => {
     if (typeof window === "undefined") return;
     const mql = window.matchMedia("(max-width: 767px)");
@@ -174,37 +275,111 @@ export default function Page() {
     };
   }, []);
 
-  // ✅ 새 링크(첫 진입)에서는 이전 lastQuery를 무시하고 기본 체크 상태로 고정
+  
+  // 🔒 모바일에서 페이지(바디) 세로 스크롤 잠금: 주소창/툴바 변화로 카드 높이 흔들림 방지
+  useEffect(() => {
+    if (!isMobile) return;
+    const prevHtmlOverflow = document.documentElement.style.overflow;
+    const prevBodyOverflow = document.body.style.overflow;
+    const prevHtmlOverscroll = (document.documentElement.style as any).overscrollBehaviorY;
+    const prevBodyOverscroll = (document.body.style as any).overscrollBehaviorY;
+
+    document.documentElement.style.overflow = "hidden";
+    document.body.style.overflow = "hidden";
+    (document.documentElement.style as any).overscrollBehaviorY = "none";
+    (document.body.style as any).overscrollBehaviorY = "none";
+
+    return () => {
+      document.documentElement.style.overflow = prevHtmlOverflow;
+      document.body.style.overflow = prevBodyOverflow;
+      (document.documentElement.style as any).overscrollBehaviorY = prevHtmlOverscroll;
+      (document.body.style as any).overscrollBehaviorY = prevBodyOverscroll;
+    };
+  }, [isMobile]);
+
+// ✅ 새 링크(첫 진입)에서는 이전 lastQuery를 무시하고 기본 체크 상태로 고정
   const isFirstLoadRef = useRef(true);
   useEffect(() => {
     if (!isFirstLoadRef.current) return;
-    setQs({ strategy: true, general: false, q: "" });
+    setAppliedQs({ strategy: true, general: false, q: "" });
     isFirstLoadRef.current = false;
   }, []);
 
 
   const [loadedOnce, setLoadedOnce] = useState(false);
   const [rows, setRows] = useState<InventoryRow[]>([]);
-  const [count, setCount] = useState<number>(0);
   const [loading, setLoading] = useState(false);
+  const [count, setCount] = useState(0);
 
+  // ✅ PC/모바일 선택 행
   const [selected, setSelected] = useState<InventoryRow | null>(null);
-  const [quoteOpen, setQuoteOpen] = useState(false);
-
-  // ✅ 모바일 카드뷰 선택/견적 생성 (PC와 분리)
   const [mobileSelected, setMobileSelected] = useState<InventoryRow | null>(null);
+
+  // ✅ 견적 모달 오픈 상태(PC/모바일)
+  const [quoteOpen, setQuoteOpen] = useState(false);
   const [quoteOpenMobile, setQuoteOpenMobile] = useState(false);
+
+  // ✅ 모바일 카드 캐러셀 ref
+  const mobileCarouselRef = useRef<HTMLDivElement | null>(null);
+  // ✅ 모바일 스크롤 rAF 스로틀
+  const mobileScrollRafRef = useRef<number | null>(null);
+
+  // ✅ 모바일 카드 step(px) 계산(스크롤/보정 모두 동일 로직 사용)
+  const getMobileStepPx = useCallback((el: HTMLDivElement) => {
+    // ✅ 가장 정확: 첫 카드와 둘째 카드의 offsetLeft 차이(실제 레이아웃 간격 포함)
+    const cards = el.querySelectorAll<HTMLElement>("[data-inv-card]");
+    if (cards && cards.length >= 2) {
+      const a = cards[0];
+      const b = cards[1];
+      const diff = b.offsetLeft - a.offsetLeft;
+      if (Number.isFinite(diff) && diff > 0) return diff;
+    }
+
+    // ✅ 보조: 카드 폭 + gap(12px). (카드 탐색 실패 시 화면 비율 fallback)
+    const firstCard =
+      el.querySelector<HTMLElement>('[data-inv-card="0"]')
+      ?? (el.firstElementChild as HTMLElement | null);
+
+    const cardW =
+      firstCard?.getBoundingClientRect().width
+      ?? Math.max(1, Math.floor((el.clientWidth || 1) * 0.86));
+
+    return cardW + 12;
+  }, []);
+
 
   // ✅ PC/모바일 공통: 견적/복사 등에 사용할 '현재 선택 행' (PC는 selected, 모바일은 mobileSelected)
   const selectedForQuote = isMobile ? mobileSelected : selected;
 
-  // 모바일에서는 조회 결과가 생기면 첫 항목을 기본 선택
-  useEffect(() => {
-    if (!isMobile) return;
-    if (!loadedOnce) return;
-    if (rows && rows.length > 0) setMobileSelected((prev) => prev ?? rows[0]);
-    else setMobileSelected(null);
-  }, [isMobile, loadedOnce, rows]);
+  // ✅ 모바일: 대량 조회 시 렌더 부담을 줄이기 위해 '점진 로딩'(앞 100개부터, 50개 남으면 +100개)
+const [mobileLoadedCount, setMobileLoadedCount] = useState(0);
+
+const mobileRowsToRender = useMemo(() => {
+  if (!isMobile) return rows;
+  const n = Math.max(0, Math.min(mobileLoadedCount, rows.length));
+  return rows.slice(0, n);
+}, [isMobile, rows, mobileLoadedCount]);
+
+  // ✅ 모바일: 조회 결과가 생기면
+// - 기본 선택(첫 항목)
+// - 캐러셀을 처음으로
+// - 점진 로딩 초기값(앞 100개)
+useEffect(() => {
+  if (!isMobile) return;
+  if (!loadedOnce) return;
+
+  const el = mobileCarouselRef.current;
+
+  if (rows && rows.length > 0) {
+    setMobileSelected((prev) => prev ?? rows[0]);
+    setMobileLoadedCount(Math.min(100, rows.length));
+    if (el) el.scrollLeft = 0;
+  } else {
+    setMobileSelected(null);
+    setMobileLoadedCount(0);
+    if (el) el.scrollLeft = 0;
+  }
+}, [isMobile, loadedOnce, rows]);
 
   
 
@@ -592,41 +767,34 @@ export default function Page() {
     e.api.showNoRowsOverlay();
   }
 
-  async function onSearch() {
-    // ✅ 입력 중에는 어떤 검색도 하지 않고, Enter/조회에서만 실행
-    const q = (qRef.current ?? "").trim();
-    const queryState: QueryState = { ...qs, q };
-
-    // qs는 "확정된 검색 조건"으로만 유지 (입력 중 리렌더 방지)
-    setQs(queryState);
-
-    if (!queryState.strategy && !queryState.general) {
+  async function onSearch(qsParam?: QueryState) {
+    const qs = qsParam ?? appliedQs;
+    if (!qs.strategy && !qs.general) {
       setLoadedOnce(true);
       setRows([]);
       setCount(0);
       setSelected(null);
       gridApiRef.current?.showNoRowsOverlay();
-      saveQueryState(queryState);
+      saveQueryState(qs);
       return;
     }
 
     setLoading(true);
     setLoadedOnce(true);
     setSelected(null);
-    saveQueryState(queryState);
+    saveQueryState(qs);
 
     try {
       const cats: string[] = [];
-      if (queryState.strategy) cats.push("strategy");
-      if (queryState.general) cats.push("general");
+      if (qs.strategy) cats.push("strategy");
+      if (qs.general) cats.push("general");
 
-      const url = `/api/inventory?category=${encodeURIComponent(
-        cats.join(",")
-      )}&q=${encodeURIComponent(queryState.q ?? "")}`;
+      const url = `/api/inventory?category=${encodeURIComponent(cats.join(","))}&q=${encodeURIComponent(qs.q ?? "")}`;
       const res = await fetch(url, { cache: "no-store" });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
-      const r: InventoryRow[] = Array.isArray(data.rows) ? data.rows : [];
+      const rRaw: InventoryRow[] = Array.isArray(data.rows) ? data.rows : [];
+      const r: InventoryRow[] = rRaw.map((row, i) => ({ ...(row as any), __i: i })) as any;
       setRows(r);
       setCount(Number(data.count) || r.length);
 
@@ -643,7 +811,58 @@ export default function Page() {
     }
   }
 
-  function onQuote() {
+  function onApplyAndSearch(next: QueryState) {
+    // ✅ 타이핑/체크 변경은 여기서만 반영되고, 조회 버튼을 눌렀을 때만 검색/조회 수행
+    setAppliedQs(next);
+    saveQueryState(next);
+    void onSearch(next);
+  }
+
+
+  
+  function onMobileCarouselScroll() {
+    const el = mobileCarouselRef.current;
+    if (!el) return;
+
+    // ✅ rAF 스로틀: 관성 스크롤에서도 프레임당 1회만 계산
+    if (mobileScrollRafRef.current != null) return;
+
+    mobileScrollRafRef.current = requestAnimationFrame(() => {
+      mobileScrollRafRef.current = null;
+      const el2 = mobileCarouselRef.current;
+      if (!el2) return;
+      if (!rows || rows.length === 0) return;
+
+const stepPx = getMobileStepPx(el2);
+
+// ✅ 현재 렌더된 카드 기준으로 인덱스 산출 (렌더 범위 밖은 존재하지 않음)
+const raw = stepPx > 0 ? Math.round(el2.scrollLeft / stepPx) : 0;
+const renderLen = mobileRowsToRender.length || 0;
+const idx = Math.max(0, Math.min(raw, Math.max(0, renderLen - 1)));
+
+// ✅ 선택 업데이트
+const r = rows[idx];
+if (r && (mobileSelected?.번호 !== r.번호 || mobileSelected?.구분 !== r.구분)) {
+  setMobileSelected(r);
+}
+
+// ✅ 점진 로딩: 남은 카드가 50개 이하가 되면 다음 100개를 추가로 렌더
+if (isMobile && rows.length > mobileLoadedCount) {
+  const threshold = Math.max(0, mobileLoadedCount - 50);
+  if (idx >= threshold) {
+    setMobileLoadedCount((c) => {
+      if (c >= rows.length) return c;
+      // idx는 렌더된 범위 내 값이므로, 여기 도달했으면 충분히 가까움
+      const next = Math.min(c + 100, rows.length);
+      return next;
+    });
+  }
+}
+    });
+  }
+
+
+function onQuote() {
     const target = selectedForQuote;
     if (!target) return;
     if (isMobile) setQuoteOpenMobile(true);
@@ -825,43 +1044,14 @@ async function copyQuote() {
           />
         </div>
 
-        <div
-          style={{
-            width: "100%",
-            display: "flex",
-            gap: 8,
-            flexWrap: "wrap",
-            alignItems: "center",
-            padding: "6px 8px",
-            borderRadius: 999,
-            border: "1px solid #e5e7eb",
-            background: "#f8fafc",
-          }}
-        >
-          <PillCheckbox checked={qs.strategy} onChange={(v) => setQs((s) => ({ ...s, strategy: v }))}>
-            전략구매
-          </PillCheckbox>
-          <PillCheckbox checked={qs.general} onChange={(v) => setQs((s) => ({ ...s, general: v }))}>
-            일반구매(현대/기아)
-          </PillCheckbox>
-        </div>
-
-        <div style={{ width: "100%", display: "flex", gap: 8 }}>
-          <input
-            className="search"
-            style={{ flex: 1, minWidth: 0 }}
-            ref={searchInputRef}
-            defaultValue={qs.q ?? ""}
-            onChange={(e) => { qRef.current = e.target.value; }}
-            placeholder="차종, 옵션, 색상 등..."
-            onKeyDown={(e) => {
-              if (e.key === "Enter") onSearch();
-            }}
-          />
-          <button className="btn primary" onClick={onSearch} disabled={loading} style={{ whiteSpace: "nowrap" }}>
-            {loading ? "조회중..." : "조회"}
-          </button>
-        </div>
+        <SearchControls
+        mobile
+        applied={appliedQs}
+        loading={loading}
+        canQuote={!!selectedForQuote}
+        onApplyAndSearch={onApplyAndSearch}
+        onQuote={onQuote}
+      />
 
       </div>
 
@@ -871,7 +1061,7 @@ async function copyQuote() {
           <span className="badge">{loadedOnce ? `조회결과 ${count.toLocaleString()}건` : "조회 전"}</span>
         </div>
         <div style={{ color: "#6b7280", fontSize: 12 }}>
-          {!qs.strategy && !qs.general ? "조회 대상을 선택하세요." : "좌우로 넘겨서 재고를 확인하세요."}
+          {!appliedQs.strategy && !appliedQs.general ? "조회 대상을 선택하세요." : "좌우로 넘겨주세요."}
         </div>
       </div>
 
@@ -886,16 +1076,22 @@ async function copyQuote() {
 
         {!loading && rows.length > 0 && (
           <div
+            ref={mobileCarouselRef}
+            onScroll={onMobileCarouselScroll}
             style={{
               display: "flex",
               gap: 12,
               overflowX: "auto",
+              overflowY: "hidden",
               paddingBottom: 6,
               scrollSnapType: "x mandatory",
               WebkitOverflowScrolling: "touch",
+              touchAction: "pan-x",
+              height: MOBILE_CARD_HEIGHT,
+              maxHeight: MOBILE_CARD_HEIGHT,
             }}
           >
-            {rows.map((r, i) => {
+            {mobileRowsToRender.map((r, i) => {
               const isSel = mobileSelected?.번호 === r.번호 && mobileSelected?.구분 === r.구분;
               const colors = `${r.외장 ?? ""}${r.외장 && r.내장 ? "/" : ""}${r.내장 ?? ""}`.trim();
               const price = fmtNum(r.가격);
@@ -903,6 +1099,7 @@ async function copyQuote() {
               return (
                 <div
                   key={`${r.구분 ?? ""}-${r.번호 ?? ""}-${i}`}
+                  data-inv-card={String(i)}
                   onClick={() => setMobileSelected(r)}
                   style={{
                     scrollSnapAlign: "center",
@@ -915,8 +1112,9 @@ async function copyQuote() {
                     cursor: "pointer",
                     display: "flex",
                     flexDirection: "column",
-                    height: "calc(100vh - 230px)",
-                    maxHeight: "calc(100vh - 230px)",
+                    height: "100%",
+                    maxHeight: "100%",
+                    overflow: "hidden",
                   }}
                 >
                   <div
@@ -985,25 +1183,15 @@ async function copyQuote() {
                     </div>
                   </div>
 
-      <div style={{ marginTop: 6, position: "sticky", bottom: 0, background: "#fff", paddingTop: 6, display: "flex", gap: 8, alignItems: "center" }}>
-                    <button
-                      className="btn accent"
-                      style={{ flex: 1, padding: "10px 12px", fontSize: 14, fontWeight: 900 }}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setMobileSelected(r);
-                        setQuoteOpenMobile(true);
-                      }}
-                    >
-                      견적 생성
-                    </button>
-                    <div style={{ minWidth: 60, textAlign: "right", fontSize: 12, fontWeight: 900, color: "#6b7280", paddingRight: 2 }}>
+      <div style={{ marginTop: 10, display: "flex", justifyContent: "flex-end" }}>
+                    <div style={{ fontSize: 12, fontWeight: 900, color: "#6b7280", paddingRight: 2 }}>
                       {`${i + 1}/${count || rows.length}`}
                     </div>
                   </div>
                 </div>
               );
             })}
+
           </div>
         )}
 
@@ -1028,46 +1216,15 @@ async function copyQuote() {
           />
         </div>
 
-        <div
-          style={{
-            display: "flex",
-            gap: 8,
-            flexWrap: "wrap",
-            alignItems: "center",
-            padding: "6px 8px",
-            borderRadius: 999,
-            border: "1px solid #e5e7eb",
-            background: "#f8fafc",
-          }}
-        >
-          <PillCheckbox checked={qs.strategy} onChange={(v) => setQs((s) => ({ ...s, strategy: v }))}>
-            전략구매
-          </PillCheckbox>
-          <PillCheckbox checked={qs.general} onChange={(v) => setQs((s) => ({ ...s, general: v }))}>
-            일반구매(현대/기아)
-          </PillCheckbox>
-        </div>
+        <SearchControls
+        applied={appliedQs}
+        loading={loading}
+        canQuote={!!selected}
+        onApplyAndSearch={onApplyAndSearch}
+        onQuote={onQuote}
+      />
 
-        <input
-          className="search"
-          ref={searchInputRef}
-          defaultValue={qs.q ?? ""}
-          onChange={(e) => { qRef.current = e.target.value; }}
-          placeholder="차종, 옵션, 색상 등..."
-          onKeyDown={(e) => {
-            if (e.key === "Enter") onSearch();
-          }}
-        />
-
-        <button className="btn primary" onClick={onSearch} disabled={loading}>
-          {loading ? "조회중..." : "데이터 조회"}
-        </button>
-
-        <button className="btn accent" onClick={onQuote} disabled={!selected}>
-          견적 생성
-        </button>
-
-        <button className="btn" onClick={() => {
+<button className="btn" onClick={() => {
           if (adminAuthed) {
             setSettingsOpen(true);
           } else {
@@ -1086,7 +1243,7 @@ async function copyQuote() {
           <span className="badge">{loadedOnce ? `조회결과 ${count.toLocaleString()}건` : "조회 전"}</span>
         </div>
         <div style={{ color: "#6b7280", fontSize: 12 }}>
-          {!qs.strategy && !qs.general ? "조회 대상을 선택하세요." : "체크 후 [데이터 조회]를 누르세요."}
+          {!appliedQs.strategy && !appliedQs.general ? "조회 대상을 선택하세요." : "체크 후 [데이터 조회]를 누르세요."}
         </div>
       </div>
 
@@ -1127,7 +1284,8 @@ async function copyQuote() {
 
             onSelectionChanged={(e) => {
               const sel = e.api.getSelectedRows();
-              setSelected(sel?.[0] ?? null);
+              const first = sel?.[0] ?? null;
+              setSelected(first);
             }}
 
             onColumnResized={scheduleSaveColumnState}
@@ -1585,7 +1743,7 @@ async function copyQuote() {
             <span className="badge">{synLoading ? "로딩..." : `총 ${synRows.length}건`}</span>
           </div>
           <div className="settingsHint">
-            예) canonical: AVANTE / 별명: 아반떼, 아반테 … → 사용자가 &quot;아반&quot;만 입력해도 AVANTE 행이 검색됩니다.
+            예canonical: AVANTE / 별명: 아반떼, 아반테 … → 사용자가 &quot;아반&quot;만 입력해도 AVANTE 행이 검색됩니다.
           </div>
         </div>
 

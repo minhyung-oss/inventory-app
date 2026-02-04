@@ -1,0 +1,2 @@
+MOBILE_RATIO = 0.80
+const MOBILE_CARD_HEIGHT = "calc(100vh - 280px)
