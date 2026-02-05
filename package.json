@@ -9,6 +9,7 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@vercel/analytics": "^1.6.1",
     "@vercel/kv": "^3.0.0",
     "ag-grid-community": "^32.2.0",
     "ag-grid-react": "^32.2.0",
