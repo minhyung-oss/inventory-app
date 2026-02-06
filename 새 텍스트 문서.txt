@@ -1,3 +1,0 @@
-git add app/page.tsx public/banner.png
-git commit -m "Add header logo and polish top bar"
-git push
