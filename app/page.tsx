@@ -898,7 +898,6 @@ const quoteText = useMemo(() => {
 
     // [Fix] note -> notes 변수명 수정 반영
     return [
-      "",
       `- 구분 번호 : ${reg}${no ? ` ${no}` : ""}`,
       `- 대표차종 : ${selectedForQuote.대표차종 ?? ""}`,
       `- 차종명: ${selectedForQuote.차종명 ?? ""}`,
